@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Ürün Düzenle</h2>
+
+<form method="POST" class="row g-3 mb-4">
+
+    <div class="col-md-3">
+        <input name="barcode" class="form-control" value="{{ product.barcode }}" required>
+    </div>
+
+    <div class="col-md-3">
+        <input name="name" class="form-control" value="{{ product.name }}" required>
+    </div>
+
+    <div class="col-md-3">
+        <select name="supplier_id" class="form-control">
+            <option value="">Tedarikçi</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {% if s.id == product.supplier_id %}selected{% endif %}>
+                {{ s.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <select name="unit" class="form-control">
+            <option value="adet" {% if product.unit == "adet" %}selected{% endif %}>Adet</option>
+            <option value="kg" {% if product.unit == "kg" %}selected{% endif %}>Kg</option>
+        </select>
+    </div>
+
+    <div class="col-md-1">
+        <button class="btn btn-success w-100">Kaydet</button>
+    </div>
+
+</form>
+
+<a href="/products" class="btn btn-secondary">Geri</a>
+
+{% endblock %}
