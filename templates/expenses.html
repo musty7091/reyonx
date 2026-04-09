@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">İşletme Giderleri</h2>
+
+    <div class="card p-4 mb-4 shadow-sm border-danger border-start border-4">
+        <h5 class="card-title mb-3">Yeni Gider Kaydet</h5>
+        <form method="POST" action="/expenses" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label text-muted small">Harcama Açıklaması</label>
+                <input type="text" name="description" class="form-control" placeholder="Örn: Mart Ayı Elektrik Faturası" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-muted small">Tutar (TL)</label>
+                <input type="number" name="amount" step="0.01" class="form-control" placeholder="0.00" required>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-danger w-100">Gideri İşle</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Açıklama</th>
+                        <th>Tutar</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in expenses %}
+                    <tr>
+                        <td>{{ e.date.strftime('%d.%m.%Y - %H:%M') }}</td>
+                        <td>{{ e.description }}</td>
+                        <td><strong class="text-danger">-{{ "%.2f"|format(e.amount) }} TL</strong></td>
+                        <td class="text-end">
+                            <a href="/expense/delete/{{ e.id }}" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Bu gider kaydını silmek istediğine emin misin?')">Sil</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">Henüz kayıtlı bir gider bulunmuyor.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

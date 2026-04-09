@@ -97,6 +97,13 @@ class SaleItem(db.Model):
     line_profit = db.Column(db.Float, default=0.0)
     product = db.relationship("Product")
 
+# YENİ EKLENEN GİDER (MASRAF) MODELİ
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(250), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.DateTime, default=db.func.now())
+
 # =========================
 # GİRİŞ KONTROLÜ
 # =========================
@@ -125,7 +132,7 @@ def logout():
     return redirect("/login")
 
 # =========================
-# ANA SAYFA (DASHBOARD) - Satışlar eklendi
+# ANA SAYFA (DASHBOARD)
 # =========================
 
 @app.route("/")
@@ -133,12 +140,19 @@ def index():
     products = Product.query.all()
     invoices = Invoice.query.all()
     sales = Sale.query.all()
+    wastes = Waste.query.all()
+    expenses = Expense.query.all()
     
     total_products = len(products)
     total_stock = sum([p.stock_quantity for p in products if p.stock_quantity])
     total_investment = sum([inv.total_amount for inv in invoices])
     total_revenue = sum([s.total_revenue for s in sales])
-    total_profit = sum([s.total_profit for s in sales])
+    
+    # Gerçek net kâr hesaplaması (Ciro - Fire - Giderler)
+    gross_profit = sum([s.total_profit for s in sales])
+    total_waste_cost = sum([w.quantity * (w.product.avg_cost if w.product and w.product.avg_cost else 0) for w in wastes])
+    total_expense_amount = sum([e.amount for e in expenses])
+    real_net_profit = gross_profit - total_waste_cost - total_expense_amount
     
     return render_template(
         "index.html",
@@ -146,7 +160,7 @@ def index():
         total_value=round(total_investment, 2), 
         avg_price=round(total_stock, 2),
         total_revenue=round(total_revenue, 2),
-        total_profit=round(total_profit, 2)
+        total_profit=round(real_net_profit, 2)
     )
 
 # =========================
@@ -247,7 +261,7 @@ def edit_product(id):
     return render_template("product_edit.html", product=p, suppliers=suppliers)
 
 # =========================
-# FATURA İŞLEMLERİ (Maliyet Hesaplaması Eklendi)
+# FATURA İŞLEMLERİ (KDV Dahil Maliyet Eklendi)
 # =========================
 
 @app.route("/invoices", methods=["GET", "POST"])
@@ -277,7 +291,6 @@ def invoices():
                 product = Product.query.get(p_id)
                 v_rate = product.vat_rate if product else 20.0
                 
-                # Özel Matrah (-1) ise KDV'yi 0 olarak hesapla
                 calc_v_rate = 0.0 if v_rate == -1 else v_rate
                 
                 if is_vat_inc:
@@ -308,12 +321,16 @@ def invoices():
                 calc_gross += line_gross
                 
                 if product:
-                    old_stock = product.stock_quantity if product.stock_quantity else 0.0
+                    if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                        product.stock_quantity = 0
+                        
+                    old_stock = product.stock_quantity
                     old_cost = product.avg_cost if product.avg_cost else 0.0
                     new_stock = old_stock + qty
                     
                     if new_stock > 0:
-                        product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
+                        # KDV DAHİL maliyet hesaplanıyor (gross_unit)
+                        product.avg_cost = ((old_stock * old_cost) + (qty * gross_unit)) / new_stock
                         
                     product.stock_quantity = new_stock
             
@@ -341,7 +358,6 @@ def invoice_detail(id):
         product = Product.query.get(p_id)
         v_rate = product.vat_rate if product else 20.0
         
-        # Özel Matrah (-1) ise KDV'yi 0 olarak hesapla
         calc_v_rate = 0.0 if v_rate == -1 else v_rate
         
         if inv.is_vat_included:
@@ -368,11 +384,17 @@ def invoice_detail(id):
         db.session.add(item)
         
         if product:
-            old_stock = product.stock_quantity if product.stock_quantity else 0.0
+            if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                product.stock_quantity = 0
+            
+            old_stock = product.stock_quantity
             old_cost = product.avg_cost if product.avg_cost else 0.0
             new_stock = old_stock + qty
+            
             if new_stock > 0:
-                product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
+                # KDV DAHİL maliyet hesaplanıyor (gross_unit)
+                product.avg_cost = ((old_stock * old_cost) + (qty * gross_unit)) / new_stock
+                
             product.stock_quantity = new_stock
         
         inv.total_net += line_net
@@ -415,7 +437,7 @@ def delete_invoice(id):
     return redirect("/invoices")
 
 # =========================
-# YENİ EKLENEN SATIŞ İŞLEMLERİ
+# SATIŞ İŞLEMLERİ
 # =========================
 
 @app.route("/sales", methods=["GET", "POST"])
@@ -513,6 +535,32 @@ def inventory():
     products = Product.query.filter_by(is_active=True).all()
     return render_template("inventory.html", products=products)
 
+# =========================
+# GİDER İŞLEMLERİ (YENİ EKLENDİ)
+# =========================
+
+@app.route("/expenses", methods=["GET", "POST"])
+def expenses():
+    if request.method == "POST":
+        desc = request.form.get("description")
+        amt = request.form.get("amount")
+        if desc and amt:
+            new_exp = Expense(description=desc, amount=float(amt))
+            db.session.add(new_exp)
+            db.session.commit()
+        return redirect("/expenses")
+    
+    all_expenses = Expense.query.order_by(Expense.id.desc()).all()
+    return render_template("expenses.html", expenses=all_expenses)
+
+@app.route("/expense/delete/<int:id>")
+def delete_expense(id):
+    exp = Expense.query.get(id)
+    if exp:
+        db.session.delete(exp)
+        db.session.commit()
+    return redirect("/expenses")
+
 
 # =========================
 # KÂR & PRİM RAPORU (FİNAL)
@@ -522,19 +570,23 @@ def inventory():
 def report():
     sales = Sale.query.all()
     wastes = Waste.query.all()
+    expenses = Expense.query.all()
 
     # 1. Satışlardan Elde Edilen Ciro ve Maliyet
     total_revenue = sum([s.total_revenue for s in sales])
     total_cost = sum([s.total_cost for s in sales])
     gross_profit = total_revenue - total_cost
 
-    # 2. Firelerin Finansal Zararı (Çöpe giden ürün miktarı * O ürünün ortalama maliyeti)
+    # 2. Firelerin Finansal Zararı
     total_waste_cost = sum([w.quantity * (w.product.avg_cost if w.product and w.product.avg_cost else 0) for w in wastes])
-
-    # 3. Gerçek Net Kâr (Brüt Kâr - Fire Zararı)
-    net_profit = gross_profit - total_waste_cost
     
-    # 4. Personel Primi (%5)
+    # 3. İşletme Giderleri
+    total_expenses = sum([e.amount for e in expenses])
+
+    # 4. Gerçek Net Kâr (Brüt Kâr - Fire Zararı - Giderler)
+    net_profit = gross_profit - total_waste_cost - total_expenses
+    
+    # 5. Personel Primi (%5)
     bonus = net_profit * app.config["BONUS_RATE"] if net_profit > 0 else 0
 
     return render_template(
@@ -543,6 +595,7 @@ def report():
         total_cost=total_cost,
         gross_profit=gross_profit,
         total_waste_cost=total_waste_cost,
+        total_expenses=total_expenses,
         net_profit=net_profit,
         bonus=bonus,
         wastes=wastes
