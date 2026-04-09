@@ -1,19 +1,22 @@
 from flask import Flask, request, redirect, render_template, session
 from flask_sqlalchemy import SQLAlchemy
+import os
 
+# Veritabanı tanımlama
 db = SQLAlchemy()
 
 app = Flask(__name__)
 
+# Ayarlar
 app.config["SECRET_KEY"] = "secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///reyonx.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["BONUS_RATE"] = 0.05  # Prim oranı %5
 
 db.init_app(app)
 
-
 # =========================
-# MODELS
+# MODELLER
 # =========================
 
 class Supplier(db.Model):
@@ -22,28 +25,59 @@ class Supplier(db.Model):
     contact_person = db.Column(db.String(150))
     phone = db.Column(db.String(50))
 
-
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
     barcode = db.Column(db.String(100), unique=True, nullable=False)
     name = db.Column(db.String(150), nullable=False)
-
     supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"))
-    supplier = db.relationship("Supplier")
-
     unit = db.Column(db.String(20))
+    price = db.Column(db.Float, default=0.0)  
+    stock_quantity = db.Column(db.Float, default=0.0) 
+    vat_rate = db.Column(db.Float, default=20.0) # Ürünün KDV Oranı (%)
     is_active = db.Column(db.Boolean, default=True)
-
+    supplier = db.relationship("Supplier")
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(200))
 
+class Invoice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"))
+    date = db.Column(db.DateTime, default=db.func.now())
+    is_vat_included = db.Column(db.Boolean, default=True) # Fatura girilirken KDV dahil miydi?
+    total_net = db.Column(db.Float, default=0.0) # KDV Hariç Toplam
+    total_vat = db.Column(db.Float, default=0.0) # Toplam KDV
+    total_amount = db.Column(db.Float, default=0.0) # KDV Dahil Genel Toplam
+    is_paid = db.Column(db.Boolean, default=False)
+    
+    supplier = db.relationship("Supplier")
+    items = db.relationship("InvoiceItem", backref="invoice", lazy=True, cascade="all, delete-orphan")
+
+class InvoiceItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey("invoice.id"))
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"))
+    quantity = db.Column(db.Float, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False) # Formdan girilen ham fiyat
+    vat_rate = db.Column(db.Float, default=0.0) # O anki KDV oranı
+    vat_amount = db.Column(db.Float, default=0.0) # KDV Tutarı
+    net_total = db.Column(db.Float, default=0.0) # KDV Hariç Satır Toplamı
+    line_total = db.Column(db.Float) # KDV Dahil Satır Toplamı
+
+    product = db.relationship("Product")
+
+class Waste(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"))
+    quantity = db.Column(db.Float, nullable=False)
+    reason = db.Column(db.String(200))
+    date = db.Column(db.DateTime, default=db.func.now())
+    product = db.relationship("Product")
 
 # =========================
-# LOGIN CONTROL
+# GİRİŞ KONTROLÜ
 # =========================
 
 @app.before_request
@@ -52,52 +86,45 @@ def check_login():
     if request.endpoint not in allowed and "user_id" not in session:
         return redirect("/login")
 
-
-# =========================
-# AUTH
-# =========================
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         u = request.form.get("username")
         p = request.form.get("password")
-
         user = User.query.filter_by(username=u).first()
-
         if user and user.password == p:
             session["user_id"] = user.id
             return redirect("/")
-
         return "Hatalı giriş"
-
     return render_template("login.html")
-
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/login")
 
-
 # =========================
-# DASHBOARD
+# ANA SAYFA (DASHBOARD)
 # =========================
 
 @app.route("/")
 def index():
-    total_products = Product.query.count()
-
+    products = Product.query.all()
+    invoices = Invoice.query.all()
+    
+    total_products = len(products)
+    total_stock = sum([p.stock_quantity for p in products if p.stock_quantity])
+    total_investment = sum([inv.total_amount for inv in invoices])
+    
     return render_template(
         "index.html",
         total_products=total_products,
-        total_value=0,
-        avg_price=0
+        total_value=round(total_investment, 2), 
+        avg_price=round(total_stock, 2)         
     )
 
-
 # =========================
-# SUPPLIERS
+# TEDARİKÇİLER
 # =========================
 
 @app.route("/suppliers", methods=["GET", "POST"])
@@ -111,52 +138,43 @@ def suppliers():
         db.session.add(s)
         db.session.commit()
         return redirect("/suppliers")
-
     return render_template("suppliers.html", suppliers=Supplier.query.all())
 
-
 # =========================
-# PRODUCTS (FINAL)
+# ÜRÜNLER
 # =========================
 
 @app.route("/products", methods=["GET", "POST"])
 def products():
     suppliers = Supplier.query.all()
     error = None
-
     if request.method == "POST":
         barcode = request.form.get("barcode")
         name = request.form.get("name")
-
         if not barcode or not name:
             error = "Barkod ve ürün adı zorunlu"
-
         elif Product.query.filter_by(barcode=barcode).first():
             error = "Bu barkod zaten var"
-
         else:
             p = Product(
                 barcode=barcode,
                 name=name,
                 supplier_id=request.form.get("supplier_id"),
                 unit=request.form.get("unit"),
+                vat_rate=float(request.form.get("vat_rate", 20.0)),
                 is_active=True
             )
             db.session.add(p)
             db.session.commit()
             return redirect("/products")
 
-    # 🔥 pagination + sıralama
     page = request.args.get("page", 1, type=int)
     sort = request.args.get("sort", "name")
-
     query = Product.query
-
     if sort == "name":
         query = query.order_by(Product.name.asc())
     elif sort == "new":
         query = query.order_by(Product.id.desc())
-
     data = query.paginate(page=page, per_page=10)
 
     return render_template(
@@ -168,7 +186,6 @@ def products():
         sort=sort
     )
 
-
 @app.route("/product/delete/<int:id>")
 def delete_product(id):
     p = Product.query.get(id)
@@ -176,7 +193,6 @@ def delete_product(id):
         db.session.delete(p)
         db.session.commit()
     return redirect("/products")
-
 
 @app.route("/product/toggle/<int:id>")
 def toggle_product(id):
@@ -186,38 +202,228 @@ def toggle_product(id):
         db.session.commit()
     return redirect("/products")
 
-
 @app.route("/product/edit/<int:id>", methods=["GET", "POST"])
 def edit_product(id):
     p = Product.query.get(id)
     suppliers = Supplier.query.all()
-
     if request.method == "POST":
         barcode = request.form.get("barcode")
-
         existing = Product.query.filter(Product.barcode == barcode, Product.id != id).first()
         if existing:
             return "Bu barkod başka üründe var"
-
         p.barcode = barcode
         p.name = request.form.get("name")
         p.supplier_id = request.form.get("supplier_id")
         p.unit = request.form.get("unit")
-
+        p.vat_rate = float(request.form.get("vat_rate", 20.0))
         db.session.commit()
         return redirect("/products")
-
     return render_template("product_edit.html", product=p, suppliers=suppliers)
+
+# =========================
+# FATURA İŞLEMLERİ
+# =========================
+
+@app.route("/invoices", methods=["GET", "POST"])
+def invoices():
+    if request.method == "POST":
+        s_id = request.form.get("supplier_id")
+        is_vat_inc = request.form.get("is_vat_included") == "1" 
+        
+        product_ids = request.form.getlist("product_id[]")
+        quantities = request.form.getlist("quantity[]")
+        unit_prices = request.form.getlist("unit_price[]")
+        
+        if s_id and product_ids:
+            new_inv = Invoice(supplier_id=s_id, is_vat_included=is_vat_inc)
+            db.session.add(new_inv)
+            db.session.flush() 
+            
+            calc_net = 0
+            calc_vat = 0
+            calc_gross = 0
+            
+            for i in range(len(product_ids)):
+                p_id = product_ids[i]
+                qty = float(quantities[i])
+                u_price = float(unit_prices[i]) 
+                
+                product = Product.query.get(p_id)
+                v_rate = product.vat_rate if product else 20.0
+                
+                # Özel Matrah (-1) ise KDV'yi 0 olarak hesapla
+                calc_v_rate = 0.0 if v_rate == -1 else v_rate
+                
+                if is_vat_inc:
+                    gross_unit = u_price
+                    net_unit = gross_unit / (1 + (calc_v_rate / 100))
+                else:
+                    net_unit = u_price
+                    gross_unit = net_unit * (1 + (calc_v_rate / 100))
+                
+                line_net = net_unit * qty
+                line_gross = gross_unit * qty
+                line_vat = line_gross - line_net
+                
+                item = InvoiceItem(
+                    invoice_id=new_inv.id,
+                    product_id=p_id,
+                    quantity=qty,
+                    unit_price=u_price,
+                    vat_rate=v_rate,
+                    vat_amount=line_vat,
+                    net_total=line_net,
+                    line_total=line_gross
+                )
+                db.session.add(item)
+                
+                calc_net += line_net
+                calc_vat += line_vat
+                calc_gross += line_gross
+                
+                if product:
+                    if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                        product.stock_quantity = 0
+                    product.stock_quantity += qty
+            
+            new_inv.total_net = round(calc_net, 2)
+            new_inv.total_vat = round(calc_vat, 2)
+            new_inv.total_amount = round(calc_gross, 2)
+            db.session.commit()
+            return redirect("/invoices")
+    
+    all_invoices = Invoice.query.order_by(Invoice.id.desc()).all()
+    suppliers = Supplier.query.all()
+    products = Product.query.all()
+    return render_template("invoices.html", invoices=all_invoices, suppliers=suppliers, products=products)
+
+@app.route("/invoice/<int:id>", methods=["GET", "POST"])
+def invoice_detail(id):
+    inv = Invoice.query.get_or_404(id)
+    products = Product.query.all()
+    
+    if request.method == "POST":
+        p_id = request.form.get("product_id")
+        qty = float(request.form.get("quantity"))
+        u_price = float(request.form.get("unit_price"))
+        
+        product = Product.query.get(p_id)
+        v_rate = product.vat_rate if product else 20.0
+        
+        # Özel Matrah (-1) ise KDV'yi 0 olarak hesapla
+        calc_v_rate = 0.0 if v_rate == -1 else v_rate
+        
+        if inv.is_vat_included:
+            gross_unit = u_price
+            net_unit = gross_unit / (1 + (calc_v_rate / 100))
+        else:
+            net_unit = u_price
+            gross_unit = net_unit * (1 + (calc_v_rate / 100))
+            
+        line_net = net_unit * qty
+        line_gross = gross_unit * qty
+        line_vat = line_gross - line_net
+        
+        item = InvoiceItem(
+            invoice_id=id,
+            product_id=p_id,
+            quantity=qty,
+            unit_price=u_price,
+            vat_rate=v_rate,
+            vat_amount=line_vat,
+            net_total=line_net,
+            line_total=line_gross
+        )
+        db.session.add(item)
+        
+        if product:
+            product.stock_quantity += qty
+        
+        inv.total_net += line_net
+        inv.total_vat += line_vat
+        inv.total_amount += line_gross
+        db.session.commit()
+        return redirect(f"/invoice/{id}")
+        
+    return render_template("invoice_detail.html", invoice=inv, products=products)
+
+@app.route("/invoice/item/delete/<int:item_id>")
+def delete_invoice_item(item_id):
+    item = InvoiceItem.query.get(item_id)
+    if item:
+        inv_id = item.invoice_id
+        product = Product.query.get(item.product_id)
+        
+        if product:
+            product.stock_quantity -= item.quantity
+        
+        item.invoice.total_net -= item.net_total
+        item.invoice.total_vat -= item.vat_amount
+        item.invoice.total_amount -= item.line_total
+        
+        db.session.delete(item)
+        db.session.commit()
+        return redirect(f"/invoice/{inv_id}")
+    return redirect("/invoices")
+
+@app.route("/invoice/delete/<int:id>")
+def delete_invoice(id):
+    inv = Invoice.query.get(id)
+    if inv:
+        for item in inv.items:
+            product = Product.query.get(item.product_id)
+            if product:
+                product.stock_quantity -= item.quantity
+        db.session.delete(inv)
+        db.session.commit()
+    return redirect("/invoices")
+
+# =========================
+# FİRE İŞLEMLERİ
+# =========================
+
+@app.route("/wastes", methods=["GET", "POST"])
+def wastes():
+    products = Product.query.all()
+    if request.method == "POST":
+        product_id = request.form.get("product_id")
+        quantity = request.form.get("quantity")
+        reason = request.form.get("reason")
+        
+        if product_id and quantity:
+            new_waste = Waste(product_id=product_id, quantity=float(quantity), reason=reason)
+            db.session.add(new_waste)
+            
+            product = Product.query.get(product_id)
+            if product:
+                if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                    product.stock_quantity = 0
+                product.stock_quantity -= float(quantity)
+                
+            db.session.commit()
+        return redirect("/wastes")
+
+    all_wastes = Waste.query.all()
+    return render_template("wastes.html", wastes=all_wastes, products=products)
+
+# =========================
+# ENVANTER (STOK) İŞLEMLERİ
+# =========================
+
+@app.route("/inventory")
+def inventory():
+    # Sadece aktif ürünleri getirip stok miktarına göre listeleyelim
+    products = Product.query.filter_by(is_active=True).all()
+    return render_template("inventory.html", products=products)
 
 
 # =========================
-# INIT
+# BAŞLATMA
 # =========================
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-
         if not User.query.filter_by(username="admin").first():
             db.session.add(User(username="admin", password="1234"))
             db.session.commit()

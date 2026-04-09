@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Fire ve Kayıp Girişi</h2>
+
+<div class="card p-4 mb-4">
+    <form method="POST" class="row g-3">
+        <div class="col-md-4">
+            <select name="product_id" class="form-control" required>
+                <option value="">Ürün Seçin</option>
+                {% for p in products %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input name="quantity" type="number" step="0.01" class="form-control" placeholder="Miktar" required>
+        </div>
+        <div class="col-md-4">
+            <input name="reason" class="form-control" placeholder="Neden? (Bozulma, dökülme vb.)">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-danger w-100">Kaydet</button>
+        </div>
+    </form>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Ürün</th>
+            <th>Miktar</th>
+            <th>Neden</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for w in wastes %}
+        <tr>
+            <td>{{ w.product.name }}</td>
+            <td>{{ w.quantity }}</td>
+            <td>{{ w.reason }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

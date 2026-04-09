@@ -1,42 +1,55 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h2>Ürün Düzenle</h2>
+<div class="container mt-4">
+    <h2 class="mb-4">Ürün Düzenle</h2>
 
-<form method="POST" class="row g-3 mb-4">
-
-    <div class="col-md-3">
-        <input name="barcode" class="form-control" value="{{ product.barcode }}" required>
+    <div class="card p-4 mb-4 shadow-sm">
+        <form method="POST" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Barkod</label>
+                <input name="barcode" class="form-control" value="{{ product.barcode }}" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small">Ürün Adı</label>
+                <input name="name" class="form-control" value="{{ product.name }}" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Tedarikçi</label>
+                <select name="supplier_id" class="form-select">
+                    <option value="">Tedarikçi Seç</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if s.id == product.supplier_id %}selected{% endif %}>
+                        {{ s.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Birim</label>
+                <select name="unit" class="form-select">
+                    <option value="adet" {% if product.unit == "adet" %}selected{% endif %}>Adet</option>
+                    <option value="kg" {% if product.unit == "kg" %}selected{% endif %}>Kg</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">KDV Oranı</label>
+                <select name="vat_rate" class="form-select" required>
+                    <option value="0" {% if product.vat_rate == 0 %}selected{% endif %}>%0</option>
+                    <option value="5" {% if product.vat_rate == 5 %}selected{% endif %}>%5</option>
+                    <option value="10" {% if product.vat_rate == 10 %}selected{% endif %}>%10</option>
+                    <option value="16" {% if product.vat_rate == 16 %}selected{% endif %}>%16</option>
+                    <option value="20" {% if product.vat_rate == 20 %}selected{% endif %}>%20</option>
+                    <option value="-1" {% if product.vat_rate == -1 %}selected{% endif %}>Özel Matrah</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button class="btn btn-success w-100">Kaydet</button>
+            </div>
+        </form>
     </div>
 
-    <div class="col-md-3">
-        <input name="name" class="form-control" value="{{ product.name }}" required>
-    </div>
-
-    <div class="col-md-3">
-        <select name="supplier_id" class="form-control">
-            <option value="">Tedarikçi</option>
-            {% for s in suppliers %}
-            <option value="{{ s.id }}" {% if s.id == product.supplier_id %}selected{% endif %}>
-                {{ s.name }}
-            </option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="col-md-2">
-        <select name="unit" class="form-control">
-            <option value="adet" {% if product.unit == "adet" %}selected{% endif %}>Adet</option>
-            <option value="kg" {% if product.unit == "kg" %}selected{% endif %}>Kg</option>
-        </select>
-    </div>
-
-    <div class="col-md-1">
-        <button class="btn btn-success w-100">Kaydet</button>
-    </div>
-
-</form>
-
-<a href="/products" class="btn btn-secondary">Geri</a>
+    <a href="/products" class="btn btn-secondary">Geri Dön</a>
+</div>
 
 {% endblock %}

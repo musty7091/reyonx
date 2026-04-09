@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Envanter Durumu (Stoklar)</h2>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Barkod</th>
+                        <th>Ürün Adı</th>
+                        <th>Tedarikçi</th>
+                        <th class="text-end">Mevcut Stok</th>
+                        <th>Birim</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr>
+                        <td>{{ p.barcode }}</td>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td>{{ p.supplier.name if p.supplier else "-" }}</td>
+                        <td class="text-end">
+                            {% if p.stock_quantity <= 0 %}
+                                <span class="text-danger fw-bold">{{ p.stock_quantity }}</span>
+                            {% else %}
+                                <span class="text-success fw-bold">{{ p.stock_quantity }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ p.unit }}</td>
+                        <td>
+                            {% if p.stock_quantity <= 0 %}
+                                <span class="badge bg-danger">Stok Yok</span>
+                            {% elif p.stock_quantity < 10 %}
+                                <span class="badge bg-warning text-dark">Kritik Stok</span>
+                            {% else %}
+                                <span class="badge bg-success">Yeterli</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,76 +1,139 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h2>Ürünler</h2>
+<div class="container mt-4">
+    <h2 class="mb-4">Ürünler</h2>
 
-{% if error %}
-<div class="alert alert-danger">{{ error }}</div>
-{% endif %}
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
 
-<form method="POST" class="row g-3 mb-4">
-
-    <div class="col-md-3">
-        <input name="barcode" class="form-control" placeholder="Barkod" required>
+    <div class="card p-4 mb-4 shadow-sm">
+        <form method="POST" class="row g-3">
+            <div class="col-md-2">
+                <input name="barcode" class="form-control" placeholder="Barkod" required>
+            </div>
+            <div class="col-md-3">
+                <input name="name" class="form-control" placeholder="Ürün adı" required>
+            </div>
+            <div class="col-md-2">
+                <select name="supplier_id" class="form-select">
+                    <option value="" disabled selected>Tedarikçi Seç...</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="unit" class="form-select">
+                    <option value="" disabled selected>Birim Seç...</option>
+                    <option value="adet">Adet</option>
+                    <option value="kg">Kg</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="vat_rate" class="form-select" required>
+                    <option value="" disabled selected>KDV Oranı...</option>
+                    <option value="0">%0</option>
+                    <option value="5">%5</option>
+                    <option value="10">%10</option>
+                    <option value="16">%16</option>
+                    <option value="20">%20</option>
+                    <option value="-1">Özel Matrah</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button class="btn btn-success w-100">Ekle</button>
+            </div>
+        </form>
     </div>
 
-    <div class="col-md-3">
-        <input name="name" class="form-control" placeholder="Ürün adı" required>
-    </div>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Barkod</th>
+                        <th>Ürün</th>
+                        <th>Tedarikçi</th>
+                        <th>Birim</th>
+                        <th>KDV Oranı</th>
+                        <th>Stok</th> <th>Durum</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr>
+                        <td>{{ p.barcode }}</td>
+                        <td>{{ p.name }}</td>
+                        <td>{{ p.supplier.name if p.supplier else "" }}</td>
+                        <td>{{ p.unit }}</td>
+                        <td>
+                            {% if p.vat_rate == -1 %}
+                                <span class="badge bg-info text-dark">Özel Matrah</span>
+                            {% else %}
+                                %{{ p.vat_rate | int }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.stock_quantity <= 0 %}
+                                <span class="text-danger fw-bold">{{ p.stock_quantity }}</span>
+                            {% else %}
+                                <span class="text-success fw-bold">{{ p.stock_quantity }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.is_active %}
+                            <span class="badge bg-success">Aktif</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Pasif</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="/product/edit/{{ p.id }}" class="btn btn-warning btn-sm">Düzenle</a>
+                            <a href="/product/toggle/{{ p.id }}" class="btn btn-secondary btn-sm">Pasif/Aktif</a>
+                            <a href="/product/delete/{{ p.id }}" class="btn btn-danger btn-sm">Sil</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if pagination.pages > 1 %}
+            <nav aria-label="Sayfa Gezinme" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    
+                    {% if pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="/products?page={{ pagination.prev_num }}">Önceki</a>
+                    </li>
+                    {% endif %}
 
-    <div class="col-md-3">
-        <select name="supplier_id" class="form-control">
-            <option value="">Tedarikçi</option>
-            {% for s in suppliers %}
-            <option value="{{ s.id }}">{{ s.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == pagination.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="/products?page={{ page_num }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
 
-    <div class="col-md-2">
-        <select name="unit" class="form-control">
-            <option value="adet">Adet</option>
-            <option value="kg">Kg</option>
-        </select>
-    </div>
-
-    <div class="col-md-1">
-        <button class="btn btn-success w-100">Ekle</button>
-    </div>
-
-</form>
-
-<table class="table table-hover">
-
-    <tr>
-        <th>Barkod</th>
-        <th>Ürün</th>
-        <th>Tedarikçi</th>
-        <th>Birim</th>
-        <th>Durum</th>
-        <th>İşlem</th>
-    </tr>
-
-    {% for p in products %}
-    <tr>
-        <td>{{ p.barcode }}</td>
-        <td>{{ p.name }}</td>
-        <td>{{ p.supplier.name if p.supplier else "" }}</td>
-        <td>{{ p.unit }}</td>
-        <td>
-            {% if p.is_active %}
-            <span class="badge bg-success">Aktif</span>
-            {% else %}
-            <span class="badge bg-secondary">Pasif</span>
+                    {% if pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="/products?page={{ pagination.next_num }}">Sonraki</a>
+                    </li>
+                    {% endif %}
+                    
+                </ul>
+            </nav>
             {% endif %}
-        </td>
-        <td>
-            <a href="/product/edit/{{ p.id }}" class="btn btn-warning btn-sm">Düzenle</a>
-            <a href="/product/toggle/{{ p.id }}" class="btn btn-secondary btn-sm">Pasif/Aktif</a>
-            <a href="/product/delete/{{ p.id }}" class="btn btn-danger btn-sm">Sil</a>
-        </td>
-    </tr>
-    {% endfor %}
-
-</table>
+            
+        </div>
+    </div>
+</div>
 
 {% endblock %}
