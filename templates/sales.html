@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Satış Raporu Girişi (Ciro & Kâr)</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#yeniSatisModal">
+            + ERP Satışlarını Yükle
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tarih / Saat</th>
+                        <th>Satış Cirosu (Gelir)</th>
+                        <th>Ürün Maliyeti</th>
+                        <th>Net Kâr</th>
+                        <th class="text-end">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sales %}
+                    <tr>
+                        <td><strong>{{ s.date.strftime('%d.%m.%Y - %H:%M') }}</strong></td>
+                        <td><span class="text-primary fw-bold">{{ "%.2f"|format(s.total_revenue) }} TL</span></td>
+                        <td>{{ "%.2f"|format(s.total_cost) }} TL</td>
+                        <td>
+                            {% if s.total_profit > 0 %}
+                                <strong class="text-success">+{{ "%.2f"|format(s.total_profit) }} TL</strong>
+                            {% else %}
+                                <strong class="text-danger">{{ "%.2f"|format(s.total_profit) }} TL</strong>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="/sale/delete/{{ s.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu satışı silersen stoklar depoya geri döner. Emin misin?')">Sil</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="yeniSatisModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Toplu Satış Raporu Girişi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <form method="POST" action="/sales">
+                <div class="modal-body">
+                    <p class="text-muted mb-4">ERP programınızdaki gün sonu veya hafta sonu satış listesini buraya sırasıyla girin.</p>
+                    <hr>
+                    <div id="urun-listesi">
+                        <div class="row g-2 mb-2 fatura-satiri">
+                            <div class="col-md-5">
+                                <select name="product_id[]" class="form-select" required>
+                                    <option value="" disabled selected>Satılan Ürünü Seç...</option>
+                                    {% for p in products %}
+                                    <option value="{{ p.id }}">{{ p.name }} (Stok: {{ p.stock_quantity }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Satılan Miktar" required>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Satış Fiyatı" required>
+                            </div>
+                            <div class="col-md-1"></div>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="yeniSatirEkle()">
+                        + Başka Ürün Ekle
+                    </button>
+                    
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary">Satışları ve Kârı İşle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function yeniSatirEkle() {
+    const liste = document.getElementById('urun-listesi');
+    const yeniSatir = document.createElement('div');
+    yeniSatir.className = 'row g-2 mb-2 fatura-satiri';
+    yeniSatir.innerHTML = `
+        <div class="col-md-5">
+            <select name="product_id[]" class="form-select" required>
+                <option value="" disabled selected>Satılan Ürünü Seç...</option>
+                {% for p in products %}
+                <option value="{{ p.id }}">{{ p.name }} (Stok: {{ p.stock_quantity }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Satılan Miktar" required>
+        </div>
+        <div class="col-md-3">
+            <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Satış Fiyatı" required>
+        </div>
+        <div class="col-md-1">
+            <button type="button" class="btn btn-danger w-100" onclick="this.parentElement.parentElement.remove()">X</button>
+        </div>
+    `;
+    liste.appendChild(yeniSatir);
+}
+</script>
+{% endblock %}
