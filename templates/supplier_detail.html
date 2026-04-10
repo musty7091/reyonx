@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 d-print-none">
         <h2>{{ supplier.name }} - Cari Ekstre</h2>
-        <div class="d-print-none">
+        <div>
             <button onclick="window.print()" class="btn btn-primary me-2">🖨️ Yazdır / PDF İndir</button>
             <a href="/suppliers" class="btn btn-secondary">Tedarikçilere Dön</a>
         </div>
     </div>
 
     <div class="d-none d-print-block mb-4 text-center">
-        <h3>{{ supplier.name }}</h3>
-        <p class="text-muted">Hesap Ekstresi ve Hareket Dökümü</p>
+        <h2>{{ supplier.name }}</h2>
+        <p class="text-muted fs-5">Hesap Ekstresi ve Hareket Dökümü</p>
     </div>
 
     <div class="row mb-4">
@@ -50,29 +50,31 @@
             <table class="table table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th>Tarih</th>
-                        <th>İşlem Türü</th>
+                        <th class="text-nowrap">Tarih</th>
+                        <th class="text-nowrap">İşlem Türü</th>
                         <th>Açıklama</th>
-                        <th class="text-end">Borç (Alınan)</th>
-                        <th class="text-end">Alacak (Ödenen)</th>
-                        <th class="text-end">Bakiye</th>
+                        <th class="text-end text-nowrap">Borç (Alınan Mal)</th>
+                        <th class="text-end text-nowrap">Alacak (Ödeme / İade)</th>
+                        <th class="text-end text-nowrap">Bakiye</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
                     <tr>
-                        <td>{{ t.date.strftime('%d.%m.%Y - %H:%M') }}</td>
-                        <td>
+                        <td class="text-nowrap">{{ t.date.strftime('%d.%m.%Y - %H:%M') }}</td>
+                        <td class="text-nowrap">
                             {% if t.type == "Alış Faturası" %}
                                 <span class="badge bg-danger">Alış Faturası</span>
+                            {% elif t.type == "İade Faturası" %}
+                                <span class="badge bg-warning text-dark">İade Faturası</span>
                             {% else %}
                                 <span class="badge bg-success">Ödeme Yapıldı</span>
                             {% endif %}
                         </td>
                         <td>{{ t.desc }}</td>
-                        <td class="text-end">{% if t.debt > 0 %}{{ "%.2f"|format(t.debt) }} TL{% else %}-{% endif %}</td>
-                        <td class="text-end text-success fw-bold">{% if t.credit > 0 %}{{ "%.2f"|format(t.credit) }} TL{% else %}-{% endif %}</td>
-                        <td class="text-end fw-bold">{{ "%.2f"|format(t.balance) }} TL</td>
+                        <td class="text-end text-nowrap">{% if t.debt > 0 %}{{ "%.2f"|format(t.debt) }} TL{% else %}-{% endif %}</td>
+                        <td class="text-end text-success fw-bold text-nowrap">{% if t.credit > 0 %}{{ "%.2f"|format(t.credit) }} TL{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold text-nowrap">{{ "%.2f"|format(t.balance) }} TL</td>
                     </tr>
                     {% else %}
                     <tr>

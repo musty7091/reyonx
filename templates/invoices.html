@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Faturalar (Alışlar)</h2>
+        <h2>Faturalar (Alış ve İade)</h2>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#yeniFaturaModal">
             + Yeni Fatura İşle
         </button>
@@ -13,25 +13,41 @@
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
+                        <th>Tarih</th>
+                        <th>Tür</th>
+                        <th>Fatura No</th>
                         <th>Tedarikçi</th>
                         <th>Net Tutar (KDV Hariç)</th>
                         <th>KDV</th>
-                        <th>Genel Toplam (Cari Borç)</th>
-                        <th>Tarih</th>
+                        <th>Genel Toplam (Cari Etki)</th>
                         <th class="text-end">İşlemler</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for inv in invoices %}
                     <tr>
-                        <td><strong>{{ inv.supplier.name }}</strong></td>
+                        <td>{{ inv.date.strftime('%d.%m.%Y') }}</td>
+                        <td>
+                            {% if inv.invoice_type == "alis" %}
+                                <span class="badge bg-primary">Alış Faturası</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">İade Faturası</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ inv.invoice_no }}</strong></td>
+                        <td>{{ inv.supplier.name }}</td>
                         <td>{{ "%.2f"|format(inv.total_net) }} TL</td>
                         <td>{{ "%.2f"|format(inv.total_vat) }} TL</td>
-                        <td><strong class="text-danger">{{ "%.2f"|format(inv.total_amount) }} TL</strong></td>
-                        <td>{{ inv.date.strftime('%d.%m.%Y') }}</td>
+                        <td>
+                            {% if inv.invoice_type == "alis" %}
+                                <strong class="text-danger">+{{ "%.2f"|format(inv.total_amount) }} TL (Borç)</strong>
+                            {% else %}
+                                <strong class="text-success">-{{ "%.2f"|format(inv.total_amount) }} TL (Düşüldü)</strong>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             <a href="/invoice/{{ inv.id }}" class="btn btn-primary btn-sm me-1">Detayları Gör</a>
-                            <a href="/invoice/delete/{{ inv.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu faturayı silersen içindeki tüm ürünlerin stokları da geri düşecektir. Emin misin?')">Sil</a>
+                            <a href="/invoice/delete/{{ inv.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu faturayı silersen içindeki tüm ürünlerin stokları eski haline dönecektir. Emin misin?')">Sil</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -41,29 +57,46 @@
     </div>
 </div>
 
-<div class="modal fade" id="yeniFaturaModal" tabindex="-1" aria-labelledby="yeniFaturaModalLabel" aria-hidden="true">
+<div class="modal fade" id="yeniFaturaModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title" id="yeniFaturaModalLabel">Yeni Fatura (Tüm Fiyatlar KDV Hariç Girilecektir)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">Yeni Fatura Girişi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             
             <form method="POST" action="/invoices">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Tedarikçi Firma</label>
-                        <select name="supplier_id" class="form-control" required>
-                            <option value="">Firma Seçiniz...</option>
-                            {% for s in suppliers %}
-                            <option value="{{ s.id }}">{{ s.name }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-primary">Fatura Tipi</label>
+                            <select name="invoice_type" class="form-control" required>
+                                <option value="alis">Alış Faturası (Stok Artar, Borç Yazar)</option>
+                                <option value="iade">İade Faturası (Stok Düşer, Borçtan Düşer)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Tedarikçi</label>
+                            <select name="supplier_id" class="form-control" required>
+                                <option value="">Firma Seçiniz...</option>
+                                {% for s in suppliers %}
+                                <option value="{{ s.id }}">{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Fatura Numarası</label>
+                            <input type="text" name="invoice_no" class="form-control" placeholder="Örn: GİB-20261234" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Fatura Tarihi</label>
+                            <input type="date" name="invoice_date" class="form-control" required>
+                        </div>
                     </div>
                     
                     <hr>
                     
-                    <h6 class="fw-bold mb-3">Faturadaki Ürünler</h6>
+                    <h6 class="fw-bold mb-3">Faturadaki Ürünler (Tüm Fiyatlar KDV Hariç)</h6>
                     <div id="urun-listesi">
                         <div class="row g-2 mb-2 fatura-satiri">
                             <div class="col-md-5">
