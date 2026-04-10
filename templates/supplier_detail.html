@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ supplier.name }} - Cari Ekstre</h2>
+        <div class="d-print-none">
+            <button onclick="window.print()" class="btn btn-primary me-2">🖨️ Yazdır / PDF İndir</button>
+            <a href="/suppliers" class="btn btn-secondary">Tedarikçilere Dön</a>
+        </div>
+    </div>
+
+    <div class="d-none d-print-block mb-4 text-center">
+        <h3>{{ supplier.name }}</h3>
+        <p class="text-muted">Hesap Ekstresi ve Hareket Dökümü</p>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-info border-start border-4">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase mb-2 small fw-bold">Toplam Borcumuz (Bakiye)</h6>
+                    <h3 class="{% if current_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(current_balance) }} TL
+                    </h3>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8 d-print-none">
+            <div class="card shadow-sm p-3">
+                <h6 class="fw-bold mb-3">Tedarikçiye Ödeme Yap (Hesaptan Düş)</h6>
+                <form method="POST" class="row g-2">
+                    <div class="col-md-4">
+                        <input type="number" name="amount" step="0.01" class="form-control" placeholder="Ödenen Tutar (TL)" required>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" name="description" class="form-control" placeholder="Açıklama (Örn: Banka Havalesi)" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success w-100">Öde</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3 d-print-none">Hesap Hareketleri</h5>
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Tarih</th>
+                        <th>İşlem Türü</th>
+                        <th>Açıklama</th>
+                        <th class="text-end">Borç (Alınan)</th>
+                        <th class="text-end">Alacak (Ödenen)</th>
+                        <th class="text-end">Bakiye</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr>
+                        <td>{{ t.date.strftime('%d.%m.%Y - %H:%M') }}</td>
+                        <td>
+                            {% if t.type == "Alış Faturası" %}
+                                <span class="badge bg-danger">Alış Faturası</span>
+                            {% else %}
+                                <span class="badge bg-success">Ödeme Yapıldı</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ t.desc }}</td>
+                        <td class="text-end">{% if t.debt > 0 %}{{ "%.2f"|format(t.debt) }} TL{% else %}-{% endif %}</td>
+                        <td class="text-end text-success fw-bold">{% if t.credit > 0 %}{{ "%.2f"|format(t.credit) }} TL{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold">{{ "%.2f"|format(t.balance) }} TL</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">Bu tedarikçi ile henüz bir hesap hareketi bulunmuyor.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

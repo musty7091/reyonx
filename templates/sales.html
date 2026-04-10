@@ -14,7 +14,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Tarih / Saat</th>
-                        <th>Satış Cirosu (Gelir)</th>
+                        <th>Satış Cirosu (KDV Hariç)</th>
                         <th>Ürün Maliyeti</th>
                         <th>Net Kâr</th>
                         <th class="text-end">İşlemler</th>
@@ -54,7 +54,7 @@
             
             <form method="POST" action="/sales">
                 <div class="modal-body">
-                    <p class="text-muted mb-4">ERP programınızdaki gün sonu veya hafta sonu satış listesini buraya sırasıyla girin.</p>
+                    <p class="text-muted mb-4">Fiyatları <b>KDV HARİÇ</b> gireceksiniz. Kâr/Zarar hesabı KDV Hariç fiyat üzerinden yapılacaktır.</p>
                     <hr>
                     <div id="urun-listesi">
                         <div class="row g-2 mb-2 fatura-satiri">
@@ -70,7 +70,7 @@
                                 <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Satılan Miktar" required>
                             </div>
                             <div class="col-md-3">
-                                <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Satış Fiyatı" required>
+                                <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Fiyat (KDV Hariç)" required>
                             </div>
                             <div class="col-md-1"></div>
                         </div>
@@ -108,7 +108,7 @@ function yeniSatirEkle() {
             <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Satılan Miktar" required>
         </div>
         <div class="col-md-3">
-            <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Satış Fiyatı" required>
+            <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Fiyat (KDV Hariç)" required>
         </div>
         <div class="col-md-1">
             <button type="button" class="btn btn-danger w-100" onclick="this.parentElement.parentElement.remove()">X</button>

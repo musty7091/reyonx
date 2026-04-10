@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Dönem Arşivi (Geçmiş Raporlar)</h2>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Dönem Adı</th>
+                        <th>Durum</th>
+                        <th>Ciro (Gelir)</th>
+                        <th>Satış Maliyeti</th>
+                        <th>Fire / Gider</th>
+                        <th>Net Kâr</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in periods %}
+                    <tr>
+                        <td><strong>{{ p.name }}</strong><br><small class="text-muted">{{ p.start_date.strftime('%d.%m.%Y') }}</small></td>
+                        <td>
+                            {% if p.is_active %}
+                            <span class="badge bg-success">Şu an Aktif</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Kapandı (Arşiv)</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(p.total_revenue) }} TL</td>
+                        <td>{{ "%.2f"|format(p.total_cost) }} TL</td>
+                        <td class="text-danger">-{{ "%.2f"|format(p.total_waste_cost + p.total_expenses) }} TL</td>
+                        <td>
+                            {% if p.is_active %}
+                                <span class="text-muted small">Dönem kapanınca hesaplanır</span>
+                            {% else %}
+                                <strong class="text-success">{{ "%.2f"|format(p.net_profit) }} TL</strong>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

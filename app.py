@@ -1,6 +1,7 @@
 from flask import Flask, request, redirect, render_template, session
 from flask_sqlalchemy import SQLAlchemy
 import os
+from datetime import datetime
 
 # Veritabanı tanımlama
 db = SQLAlchemy()
@@ -19,11 +20,35 @@ db.init_app(app)
 # MODELLER
 # =========================
 
+class Period(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False) # Örn: Nisan 2026
+    start_date = db.Column(db.DateTime, default=db.func.now())
+    end_date = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Kapanış Anındaki Finansal Özetler (Arşiv için)
+    total_revenue = db.Column(db.Float, default=0.0)
+    total_cost = db.Column(db.Float, default=0.0)
+    total_waste_cost = db.Column(db.Float, default=0.0)
+    total_expenses = db.Column(db.Float, default=0.0)
+    net_profit = db.Column(db.Float, default=0.0)
+
 class Supplier(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
     contact_person = db.Column(db.String(150))
     phone = db.Column(db.String(50))
+
+class Payment(db.Model):
+    # Tedarikçiye yapılan ödemeler (Dönemden bağımsız)
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"))
+    amount = db.Column(db.Float, nullable=False) # Ödenen tutar
+    description = db.Column(db.String(200)) # Açıklama (Nakit, Havale vb.)
+    date = db.Column(db.DateTime, default=db.func.now())
+    
+    supplier = db.relationship("Supplier", backref="payments")
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -33,7 +58,7 @@ class Product(db.Model):
     unit = db.Column(db.String(20))
     price = db.Column(db.Float, default=0.0)  
     stock_quantity = db.Column(db.Float, default=0.0) 
-    avg_cost = db.Column(db.Float, default=0.0) # Net Maliyet
+    avg_cost = db.Column(db.Float, default=0.0) # Net Maliyet (KDV Hariç)
     vat_rate = db.Column(db.Float, default=20.0) # Ürünün KDV Oranı (%)
     is_active = db.Column(db.Boolean, default=True)
     supplier = db.relationship("Supplier")
@@ -46,14 +71,14 @@ class User(db.Model):
 class Invoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"))
+    period_id = db.Column(db.Integer, db.ForeignKey("period.id")) # Hangi döneme ait?
     date = db.Column(db.DateTime, default=db.func.now())
-    is_vat_included = db.Column(db.Boolean, default=True) # Fatura girilirken KDV dahil miydi?
     total_net = db.Column(db.Float, default=0.0) # KDV Hariç Toplam
     total_vat = db.Column(db.Float, default=0.0) # Toplam KDV
-    total_amount = db.Column(db.Float, default=0.0) # KDV Dahil Genel Toplam
-    is_paid = db.Column(db.Boolean, default=False)
+    total_amount = db.Column(db.Float, default=0.0) # KDV Dahil Genel Toplam (Borç)
     
     supplier = db.relationship("Supplier")
+    period = db.relationship("Period")
     items = db.relationship("InvoiceItem", backref="invoice", lazy=True, cascade="all, delete-orphan")
 
 class InvoiceItem(db.Model):
@@ -61,7 +86,7 @@ class InvoiceItem(db.Model):
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoice.id"))
     product_id = db.Column(db.Integer, db.ForeignKey("product.id"))
     quantity = db.Column(db.Float, nullable=False)
-    unit_price = db.Column(db.Float, nullable=False) # Formdan girilen ham fiyat
+    unit_price = db.Column(db.Float, nullable=False) # Formdan KDV HARİÇ girilen fiyat
     vat_rate = db.Column(db.Float, default=0.0) # O anki KDV oranı
     vat_amount = db.Column(db.Float, default=0.0) # KDV Tutarı
     net_total = db.Column(db.Float, default=0.0) # KDV Hariç Satır Toplamı
@@ -72,17 +97,24 @@ class InvoiceItem(db.Model):
 class Waste(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey("product.id"))
+    period_id = db.Column(db.Integer, db.ForeignKey("period.id")) # Hangi döneme ait?
     quantity = db.Column(db.Float, nullable=False)
+    cost = db.Column(db.Float, default=0.0) # Zarar anındaki maliyet
     reason = db.Column(db.String(200))
     date = db.Column(db.DateTime, default=db.func.now())
+    
     product = db.relationship("Product")
+    period = db.relationship("Period")
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    period_id = db.Column(db.Integer, db.ForeignKey("period.id")) # Hangi döneme ait?
     date = db.Column(db.DateTime, default=db.func.now())
-    total_revenue = db.Column(db.Float, default=0.0) # Satıştan kasaya giren (Net Ciro)
+    total_revenue = db.Column(db.Float, default=0.0) # KDV Hariç Net Ciro
     total_cost = db.Column(db.Float, default=0.0)    # Satılan malın maliyeti
     total_profit = db.Column(db.Float, default=0.0)  # Ciro - Maliyet
+    
+    period = db.relationship("Period")
     items = db.relationship("SaleItem", backref="sale", lazy=True, cascade="all, delete-orphan")
 
 class SaleItem(db.Model):
@@ -98,9 +130,24 @@ class SaleItem(db.Model):
 
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    period_id = db.Column(db.Integer, db.ForeignKey("period.id")) # Hangi döneme ait?
     description = db.Column(db.String(250), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.DateTime, default=db.func.now())
+    
+    period = db.relationship("Period")
+
+# =========================
+# YARDIMCI FONKSİYONLAR
+# =========================
+
+def get_active_period():
+    period = Period.query.filter_by(is_active=True).first()
+    if not period:
+        period = Period(name="1. Dönem")
+        db.session.add(period)
+        db.session.commit()
+    return period
 
 # =========================
 # GİRİŞ KONTROLÜ
@@ -135,34 +182,37 @@ def logout():
 
 @app.route("/")
 def index():
+    active_period = get_active_period()
     products = Product.query.all()
-    invoices = Invoice.query.all()
-    sales = Sale.query.all()
-    wastes = Waste.query.all()
-    expenses = Expense.query.all()
+    
+    # Sadece Aktif Dönemin Verilerini Çekiyoruz
+    invoices = Invoice.query.filter_by(period_id=active_period.id).all()
+    sales = Sale.query.filter_by(period_id=active_period.id).all()
+    wastes = Waste.query.filter_by(period_id=active_period.id).all()
+    expenses = Expense.query.filter_by(period_id=active_period.id).all()
     
     total_products = len(products)
     total_stock = sum([p.stock_quantity for p in products if p.stock_quantity])
     total_investment = sum([inv.total_amount for inv in invoices])
     total_revenue = sum([s.total_revenue for s in sales])
     
-    # Gerçek net kâr hesaplaması (Ciro - Fire - Giderler)
     gross_profit = sum([s.total_profit for s in sales])
-    total_waste_cost = sum([w.quantity * (w.product.avg_cost if w.product and w.product.avg_cost else 0) for w in wastes])
+    total_waste_cost = sum([w.quantity * w.cost for w in wastes]) 
     total_expense_amount = sum([e.amount for e in expenses])
     real_net_profit = gross_profit - total_waste_cost - total_expense_amount
     
     return render_template(
         "index.html",
+        active_period=active_period,
         total_products=total_products,
+        total_stock=round(total_stock, 2), 
         total_value=round(total_investment, 2), 
-        avg_price=round(total_stock, 2),
         total_revenue=round(total_revenue, 2),
         total_profit=round(real_net_profit, 2)
     )
 
 # =========================
-# TEDARİKÇİLER
+# TEDARİKÇİLER VE CARİ (EKSTRE)
 # =========================
 
 @app.route("/suppliers", methods=["GET", "POST"])
@@ -176,7 +226,64 @@ def suppliers():
         db.session.add(s)
         db.session.commit()
         return redirect("/suppliers")
-    return render_template("suppliers.html", suppliers=Supplier.query.all())
+    
+    # Tüm tedarikçilerin borç/alacak bakiyelerini hesaplıyoruz
+    suppliers_data = []
+    for s in Supplier.query.all():
+        total_invoices = sum(inv.total_amount for inv in Invoice.query.filter_by(supplier_id=s.id).all())
+        total_payments = sum(pay.amount for pay in Payment.query.filter_by(supplier_id=s.id).all())
+        balance = total_invoices - total_payments # Artı ise biz borçluyuz
+        suppliers_data.append({"supplier": s, "balance": balance})
+        
+    return render_template("suppliers.html", suppliers_data=suppliers_data)
+
+@app.route("/supplier/<int:id>", methods=["GET", "POST"])
+def supplier_detail(id):
+    supplier = Supplier.query.get_or_404(id)
+    
+    # Eğer yeni bir ödeme ekleniyorsa
+    if request.method == "POST":
+        amount = request.form.get("amount")
+        desc = request.form.get("description")
+        if amount:
+            payment = Payment(supplier_id=id, amount=float(amount), description=desc)
+            db.session.add(payment)
+            db.session.commit()
+            return redirect(f"/supplier/{id}")
+
+    # Ekstre İçin İşlemleri (Faturalar ve Ödemeler) Birleştiriyoruz
+    transactions = []
+    invoices = Invoice.query.filter_by(supplier_id=id).all()
+    payments = Payment.query.filter_by(supplier_id=id).all()
+    
+    for inv in invoices:
+        transactions.append({
+            "date": inv.date,
+            "type": "Alış Faturası",
+            "desc": f"Fatura No: #{inv.id}",
+            "debt": inv.total_amount, # Borcumuz artıyor
+            "credit": 0.0
+        })
+        
+    for pay in payments:
+        transactions.append({
+            "date": pay.date,
+            "type": "Ödeme",
+            "desc": pay.description,
+            "debt": 0.0,
+            "credit": pay.amount # Borcumuz azalıyor (Ödedik)
+        })
+        
+    # İşlemleri tarihe göre eskiden yeniye sırala
+    transactions.sort(key=lambda x: x["date"])
+    
+    # Yürüyen Bakiye Hesaplama
+    running_balance = 0.0
+    for t in transactions:
+        running_balance += (t["debt"] - t["credit"])
+        t["balance"] = running_balance
+        
+    return render_template("supplier_detail.html", supplier=supplier, transactions=transactions, current_balance=running_balance)
 
 # =========================
 # ÜRÜNLER
@@ -259,21 +366,20 @@ def edit_product(id):
     return render_template("product_edit.html", product=p, suppliers=suppliers)
 
 # =========================
-# FATURA İŞLEMLERİ (KDV HARİÇ MALİYET)
+# FATURA İŞLEMLERİ (SADECE KDV HARİÇ GİRİŞ)
 # =========================
 
 @app.route("/invoices", methods=["GET", "POST"])
 def invoices():
+    active_period = get_active_period()
     if request.method == "POST":
         s_id = request.form.get("supplier_id")
-        is_vat_inc = request.form.get("is_vat_included") == "1" 
-        
         product_ids = request.form.getlist("product_id[]")
         quantities = request.form.getlist("quantity[]")
-        unit_prices = request.form.getlist("unit_price[]")
+        unit_prices = request.form.getlist("unit_price[]") # KDV Hariç Fiyat
         
         if s_id and product_ids:
-            new_inv = Invoice(supplier_id=s_id, is_vat_included=is_vat_inc)
+            new_inv = Invoice(supplier_id=s_id, period_id=active_period.id)
             db.session.add(new_inv)
             db.session.flush() 
             
@@ -284,18 +390,13 @@ def invoices():
             for i in range(len(product_ids)):
                 p_id = product_ids[i]
                 qty = float(quantities[i])
-                u_price = float(unit_prices[i]) 
+                net_unit = float(unit_prices[i]) # Sisteme hep KDV hariç giriliyor
                 
                 product = Product.query.get(p_id)
                 v_rate = product.vat_rate if product else 20.0
                 calc_v_rate = 0.0 if v_rate == -1 else v_rate
                 
-                if is_vat_inc:
-                    gross_unit = u_price
-                    net_unit = gross_unit / (1 + (calc_v_rate / 100))
-                else:
-                    net_unit = u_price
-                    gross_unit = net_unit * (1 + (calc_v_rate / 100))
+                gross_unit = net_unit * (1 + (calc_v_rate / 100))
                 
                 line_net = net_unit * qty
                 line_gross = gross_unit * qty
@@ -305,7 +406,7 @@ def invoices():
                     invoice_id=new_inv.id,
                     product_id=p_id,
                     quantity=qty,
-                    unit_price=u_price,
+                    unit_price=net_unit,
                     vat_rate=v_rate,
                     vat_amount=line_vat,
                     net_total=line_net,
@@ -326,21 +427,20 @@ def invoices():
                     new_stock = old_stock + qty
                     
                     if new_stock > 0:
-                        # KDV HARİÇ (NET) maliyet hesaplanıyor (net_unit)
                         product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
                         
                     product.stock_quantity = new_stock
             
             new_inv.total_net = round(calc_net, 2)
             new_inv.total_vat = round(calc_vat, 2)
-            new_inv.total_amount = round(calc_gross, 2)
+            new_inv.total_amount = round(calc_gross, 2) # Bu tutar tedarikçiye borç olarak yazılır
             db.session.commit()
             return redirect("/invoices")
     
-    all_invoices = Invoice.query.order_by(Invoice.id.desc()).all()
+    all_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.id.desc()).all()
     suppliers = Supplier.query.all()
     products = Product.query.all()
-    return render_template("invoices.html", invoices=all_invoices, suppliers=suppliers, products=products)
+    return render_template("invoices.html", invoices=all_invoices, suppliers=suppliers, products=products, active_period=active_period)
 
 @app.route("/invoice/<int:id>", methods=["GET", "POST"])
 def invoice_detail(id):
@@ -350,18 +450,13 @@ def invoice_detail(id):
     if request.method == "POST":
         p_id = request.form.get("product_id")
         qty = float(request.form.get("quantity"))
-        u_price = float(request.form.get("unit_price"))
+        net_unit = float(request.form.get("unit_price")) # KDV Hariç
         
         product = Product.query.get(p_id)
         v_rate = product.vat_rate if product else 20.0
         calc_v_rate = 0.0 if v_rate == -1 else v_rate
         
-        if inv.is_vat_included:
-            gross_unit = u_price
-            net_unit = gross_unit / (1 + (calc_v_rate / 100))
-        else:
-            net_unit = u_price
-            gross_unit = net_unit * (1 + (calc_v_rate / 100))
+        gross_unit = net_unit * (1 + (calc_v_rate / 100))
             
         line_net = net_unit * qty
         line_gross = gross_unit * qty
@@ -371,7 +466,7 @@ def invoice_detail(id):
             invoice_id=id,
             product_id=p_id,
             quantity=qty,
-            unit_price=u_price,
+            unit_price=net_unit,
             vat_rate=v_rate,
             vat_amount=line_vat,
             net_total=line_net,
@@ -388,7 +483,6 @@ def invoice_detail(id):
             new_stock = old_stock + qty
             
             if new_stock > 0:
-                # KDV HARİÇ (NET) maliyet hesaplanıyor (net_unit)
                 product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
                 
             product.stock_quantity = new_stock
@@ -433,18 +527,19 @@ def delete_invoice(id):
     return redirect("/invoices")
 
 # =========================
-# SATIŞ İŞLEMLERİ (NET CİRO HESABI)
+# SATIŞ İŞLEMLERİ (SADECE KDV HARİÇ GİRİŞ)
 # =========================
 
 @app.route("/sales", methods=["GET", "POST"])
 def sales():
+    active_period = get_active_period()
     if request.method == "POST":
         product_ids = request.form.getlist("product_id[]")
         quantities = request.form.getlist("quantity[]")
-        unit_prices = request.form.getlist("unit_price[]")
+        unit_prices = request.form.getlist("unit_price[]") # KDV Hariç Satış Fiyatı
         
         if product_ids:
-            new_sale = Sale()
+            new_sale = Sale(period_id=active_period.id)
             db.session.add(new_sale)
             db.session.flush()
             
@@ -453,14 +548,9 @@ def sales():
             for i in range(len(product_ids)):
                 p_id = product_ids[i]
                 qty = float(quantities[i])
-                u_price_gross = float(unit_prices[i]) # Kasadan geçen Brüt rakam
+                u_price_net = float(unit_prices[i]) # Fiyat zaten KDV Hariç giriliyor
                 
                 product = Product.query.get(p_id)
-                v_rate = product.vat_rate if product else 20.0
-                calc_v_rate = 0.0 if v_rate == -1 else v_rate
-                
-                # CİROYU NETLEŞTİR (KDV HARİÇ)
-                u_price_net = u_price_gross / (1 + (calc_v_rate / 100))
                 cost = product.avg_cost if product and product.avg_cost else 0.0
                 
                 line_rev_net = qty * u_price_net
@@ -490,9 +580,9 @@ def sales():
             db.session.commit()
             return redirect("/sales")
             
-    all_sales = Sale.query.order_by(Sale.id.desc()).all()
+    all_sales = Sale.query.filter_by(period_id=active_period.id).order_by(Sale.id.desc()).all()
     products = Product.query.filter_by(is_active=True).all()
-    return render_template("sales.html", sales=all_sales, products=products)
+    return render_template("sales.html", sales=all_sales, products=products, active_period=active_period)
 
 @app.route("/sale/delete/<int:id>")
 def delete_sale(id):
@@ -507,11 +597,12 @@ def delete_sale(id):
     return redirect("/sales")
 
 # =========================
-# FİRE İŞLEMLERİ
+# FİRE İŞLEMLERİ (SON FATURA MALİYETİ BAZLI)
 # =========================
 
 @app.route("/wastes", methods=["GET", "POST"])
 def wastes():
+    active_period = get_active_period()
     products = Product.query.all()
     if request.method == "POST":
         product_id = request.form.get("product_id")
@@ -519,10 +610,26 @@ def wastes():
         reason = request.form.get("reason")
         
         if product_id and quantity:
-            new_waste = Waste(product_id=product_id, quantity=float(quantity), reason=reason)
+            product = Product.query.get(product_id)
+            
+            last_invoice_item = InvoiceItem.query.join(Invoice).filter(
+                InvoiceItem.product_id == product_id
+            ).order_by(Invoice.date.desc()).first()
+            
+            if last_invoice_item and last_invoice_item.quantity > 0:
+                cost_at_waste = last_invoice_item.net_total / last_invoice_item.quantity
+            else:
+                cost_at_waste = product.avg_cost if product and product.avg_cost else 0.0
+            
+            new_waste = Waste(
+                product_id=product_id, 
+                period_id=active_period.id,
+                quantity=float(quantity), 
+                cost=cost_at_waste, 
+                reason=reason
+            )
             db.session.add(new_waste)
             
-            product = Product.query.get(product_id)
             if product:
                 if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
                     product.stock_quantity = 0
@@ -531,8 +638,8 @@ def wastes():
             db.session.commit()
         return redirect("/wastes")
 
-    all_wastes = Waste.query.order_by(Waste.id.desc()).all()
-    return render_template("wastes.html", wastes=all_wastes, products=products)
+    all_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).all()
+    return render_template("wastes.html", wastes=all_wastes, products=products, active_period=active_period)
 
 # =========================
 # ENVANTER (STOK) İŞLEMLERİ
@@ -549,17 +656,18 @@ def inventory():
 
 @app.route("/expenses", methods=["GET", "POST"])
 def expenses():
+    active_period = get_active_period()
     if request.method == "POST":
         desc = request.form.get("description")
         amt = request.form.get("amount")
         if desc and amt:
-            new_exp = Expense(description=desc, amount=float(amt))
+            new_exp = Expense(description=desc, amount=float(amt), period_id=active_period.id)
             db.session.add(new_exp)
             db.session.commit()
         return redirect("/expenses")
     
-    all_expenses = Expense.query.order_by(Expense.id.desc()).all()
-    return render_template("expenses.html", expenses=all_expenses)
+    all_expenses = Expense.query.filter_by(period_id=active_period.id).order_by(Expense.id.desc()).all()
+    return render_template("expenses.html", expenses=all_expenses, active_period=active_period)
 
 @app.route("/expense/delete/<int:id>")
 def delete_expense(id):
@@ -571,20 +679,21 @@ def delete_expense(id):
 
 
 # =========================
-# KÂR & PRİM RAPORU (TAM NET)
+# KÂR & PRİM RAPORU
 # =========================
 
 @app.route("/report")
 def report():
-    sales = Sale.query.all()
-    wastes = Waste.query.all()
-    expenses = Expense.query.all()
+    active_period = get_active_period()
+    sales = Sale.query.filter_by(period_id=active_period.id).all()
+    wastes = Waste.query.filter_by(period_id=active_period.id).all()
+    expenses = Expense.query.filter_by(period_id=active_period.id).all()
 
     total_revenue = sum([s.total_revenue for s in sales])
     total_cost = sum([s.total_cost for s in sales])
     gross_profit = total_revenue - total_cost
 
-    total_waste_cost = sum([w.quantity * (w.product.avg_cost if w.product and w.product.avg_cost else 0) for w in wastes])
+    total_waste_cost = sum([w.quantity * w.cost for w in wastes])
     total_expenses = sum([e.amount for e in expenses])
 
     net_profit = gross_profit - total_waste_cost - total_expenses
@@ -592,6 +701,7 @@ def report():
 
     return render_template(
         "profit_report.html",
+        active_period=active_period,
         total_revenue=total_revenue,
         total_cost=total_cost,
         gross_profit=gross_profit,
@@ -601,6 +711,44 @@ def report():
         bonus=bonus,
         wastes=wastes
     )
+
+# =========================
+# DÖNEM YÖNETİMİ VE ARŞİV
+# =========================
+
+@app.route("/period/close", methods=["POST"])
+def close_period():
+    active_period = get_active_period()
+    
+    sales = Sale.query.filter_by(period_id=active_period.id).all()
+    wastes = Waste.query.filter_by(period_id=active_period.id).all()
+    expenses = Expense.query.filter_by(period_id=active_period.id).all()
+
+    t_rev = sum([s.total_revenue for s in sales])
+    t_cost = sum([s.total_cost for s in sales])
+    t_waste = sum([w.quantity * w.cost for w in wastes])
+    t_exp = sum([e.amount for e in expenses])
+    n_prof = (t_rev - t_cost) - t_waste - t_exp
+
+    active_period.total_revenue = t_rev
+    active_period.total_cost = t_cost
+    active_period.total_waste_cost = t_waste
+    active_period.total_expenses = t_exp
+    active_period.net_profit = n_prof
+    active_period.end_date = datetime.utcnow()
+    active_period.is_active = False 
+
+    new_name = request.form.get("new_period_name", "Yeni Dönem")
+    new_period = Period(name=new_name)
+    db.session.add(new_period)
+    db.session.commit()
+
+    return redirect("/periods")
+
+@app.route("/periods")
+def periods():
+    all_periods = Period.query.order_by(Period.id.desc()).all()
+    return render_template("periods.html", periods=all_periods)
 
 # =========================
 # BAŞLATMA

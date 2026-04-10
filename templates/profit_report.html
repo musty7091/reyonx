@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4 border-bottom pb-2">Aylık Kâr / Zarar ve Prim Raporu</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <h2>Aylık Kâr / Zarar ve Prim Raporu</h2>
+        <button type="button" class="btn btn-danger fw-bold" data-bs-toggle="modal" data-bs-target="#closePeriodModal">
+            🔒 {{ active_period.name }} Dönemini Kapat
+        </button>
+    </div>
 
     <div class="row g-4 mb-4">
         <div class="col-md-4">
@@ -61,6 +66,30 @@
                     <h4 class="text-warning">{{ "%.2f"|format(bonus) }} TL</h4>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="closePeriodModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Dönemi Arşive Kaldır</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/period/close">
+                <div class="modal-body">
+                    <p>Mevcut hesaplar dondurulacak ve arşive kaldırılacaktır. Yeni ve temiz bir fatura/satış sayfası açılacaktır. <b>Stoklarınız sıfırlanmaz, devretmeye devam eder.</b></p>
+                    <div class="mb-3">
+                        <label class="form-label">Başlayacak Olan Yeni Dönemin Adı</label>
+                        <input type="text" name="new_period_name" class="form-control" placeholder="Örn: Mayıs 2026" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-danger">Dönemi Kapat ve Yeni Döneme Geç</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
