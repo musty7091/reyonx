@@ -570,20 +570,21 @@ def delete_expense(id):
 def report():
     sales = Sale.query.all()
     wastes = Waste.query.all()
-    expenses = Expense.query.all()
+    expenses = Expense.query.all() # Giderleri veritabanından çağırıyoruz
 
-    # 1. Satışlardan Elde Edilen Ciro ve Maliyet
+    # 1. Satışlardan Elde Edilen Brüt Kâr
     total_revenue = sum([s.total_revenue for s in sales])
     total_cost = sum([s.total_cost for s in sales])
     gross_profit = total_revenue - total_cost
 
-    # 2. Firelerin Finansal Zararı
+    # 2. Firelerin Finansal Zararı (KDV DAHİL MALİYET ÜZERİNDEN)
     total_waste_cost = sum([w.quantity * (w.product.avg_cost if w.product and w.product.avg_cost else 0) for w in wastes])
     
-    # 3. İşletme Giderleri
+    # 3. İşletme Giderleri Toplamı
     total_expenses = sum([e.amount for e in expenses])
 
-    # 4. Gerçek Net Kâr (Brüt Kâr - Fire Zararı - Giderler)
+    # 4. GERÇEK NET KÂR HESABI (Kusursuz Formül)
+    # Brüt Kâr - Fire Zararı - İşletme Giderleri
     net_profit = gross_profit - total_waste_cost - total_expenses
     
     # 5. Personel Primi (%5)
@@ -595,10 +596,9 @@ def report():
         total_cost=total_cost,
         gross_profit=gross_profit,
         total_waste_cost=total_waste_cost,
-        total_expenses=total_expenses,
+        total_expenses=total_expenses, # HTML'e gönderiyoruz
         net_profit=net_profit,
-        bonus=bonus,
-        wastes=wastes
+        bonus=bonus
     )
 
 # =========================

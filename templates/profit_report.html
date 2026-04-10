@@ -3,13 +3,12 @@
 <div class="container mt-4">
     <h2 class="mb-4 border-bottom pb-2">Aylık Kâr / Zarar ve Prim Raporu</h2>
 
-    <div class="row g-4 mb-5">
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="card shadow-sm h-100 border-primary border-start border-5">
                 <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-2">Toplam Satış (Ciro)</h6>
+                    <h6 class="text-muted text-uppercase mb-2 small fw-bold">Toplam Satış (Ciro)</h6>
                     <h3 class="text-primary">{{ "%.2f"|format(total_revenue) }} TL</h3>
-                    <small class="text-muted">Kasaya giren toplam para</small>
                 </div>
             </div>
         </div>
@@ -17,9 +16,8 @@
         <div class="col-md-4">
             <div class="card shadow-sm h-100 border-warning border-start border-5">
                 <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-2">Satılan Malın Maliyeti</h6>
+                    <h6 class="text-muted text-uppercase mb-2 small fw-bold">Satılan Malın Maliyeti</h6>
                     <h3 class="text-warning">{{ "%.2f"|format(total_cost) }} TL</h3>
-                    <small class="text-muted">Satılan ürünlerin alış maliyeti</small>
                 </div>
             </div>
         </div>
@@ -27,35 +25,40 @@
         <div class="col-md-4">
             <div class="card shadow-sm h-100 border-success border-start border-5 bg-light">
                 <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-2">Brüt Kâr</h6>
+                    <h6 class="text-muted text-uppercase mb-2 small fw-bold">Brüt Kâr (Ciro-Maliyet)</h6>
                     <h3 class="text-success">+{{ "%.2f"|format(gross_profit) }} TL</h3>
-                    <small class="text-muted">Ciro - Maliyet</small>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card shadow h-100 border-danger border-top border-5">
-                <div class="card-body text-center py-5">
-                    <h5 class="text-danger text-uppercase mb-3"><i class="bi bi-trash"></i> Fire & Kayıp Maliyeti</h5>
-                    <h1 class="display-5 text-danger">-{{ "%.2f"|format(total_waste_cost) }} TL</h1>
-                    <p class="text-muted mt-3">Personelin çöpe attığı/bozulan ürünlerin kârdan düşülen toplam maliyetidir.</p>
+                <div class="card-body text-center py-4">
+                    <h6 class="text-danger text-uppercase mb-3 fw-bold small">Fire Maliyeti</h6>
+                    <h3 class="text-danger">-{{ "%.2f"|format(total_waste_cost) }} TL</h3>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-6">
-            <div class="card shadow h-100 border-success border-top border-5 bg-dark text-white">
+        <div class="col-md-4">
+            <div class="card shadow h-100 border-danger border-top border-5">
                 <div class="card-body text-center py-4">
-                    <h5 class="text-uppercase text-light mb-3">Gerçek Net Kâr</h5>
-                    <h1 class="display-4 text-success">{{ "%.2f"|format(net_profit) }} TL</h1>
-                    <hr class="bg-secondary my-4">
-                    <h6 class="text-uppercase text-light mb-2">Bu Ayki Personel Primi (%5)</h6>
-                    <h2 class="text-warning border border-warning rounded-pill d-inline-block px-5 py-2">
-                        {{ "%.2f"|format(bonus) }} TL
-                    </h2>
+                    <h6 class="text-danger text-uppercase mb-3 fw-bold small">İşletme Giderleri</h6>
+                    <h3 class="text-danger">-{{ "%.2f"|format(total_expenses) }} TL</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow h-100 border-success border-top border-5 bg-dark text-white">
+                <div class="card-body text-center py-3">
+                    <h6 class="text-uppercase text-light mb-2 small">Gerçek Net Kâr</h6>
+                    <h2 class="text-success">{{ "%.2f"|format(net_profit) }} TL</h2>
+                    <hr class="bg-secondary my-3">
+                    <p class="text-uppercase text-light mb-1 small">Personel Primi (%5)</p>
+                    <h4 class="text-warning">{{ "%.2f"|format(bonus) }} TL</h4>
                 </div>
             </div>
         </div>
