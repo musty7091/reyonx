@@ -71,7 +71,7 @@ class User(db.Model):
 class Invoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invoice_no = db.Column(db.String(100)) 
-    invoice_type = db.Column(db.String(20), default="alis") # "alis" veya "iade" Eklendi
+    invoice_type = db.Column(db.String(20), default="alis") # "alis" veya "iade"
     supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"))
     period_id = db.Column(db.Integer, db.ForeignKey("period.id")) 
     date = db.Column(db.DateTime, default=db.func.now()) 
@@ -287,12 +287,16 @@ def supplier_detail(id):
             "credit": pay.amount 
         })
         
+    # Önce eskiden yeniye (kronolojik) sıralıyoruz ki bakiye hesabı doğru çıksın
     transactions.sort(key=lambda x: x["date"])
     
     running_balance = 0.0
     for t in transactions:
         running_balance += (t["debt"] - t["credit"])
         t["balance"] = running_balance
+        
+    # Hesaplama bittikten sonra en yeni işlemi en üste almak için listeyi ters çeviriyoruz
+    transactions.reverse()
         
     return render_template("supplier_detail.html", supplier=supplier, transactions=transactions, current_balance=running_balance)
 
@@ -386,7 +390,7 @@ def invoices():
     if request.method == "POST":
         s_id = request.form.get("supplier_id")
         invoice_no = request.form.get("invoice_no") 
-        invoice_type = request.form.get("invoice_type", "alis") # Alış mı İade mi?
+        invoice_type = request.form.get("invoice_type", "alis") 
         invoice_date_str = request.form.get("invoice_date") 
         
         product_ids = request.form.getlist("product_id[]")
@@ -447,7 +451,6 @@ def invoices():
                     old_stock = product.stock_quantity
                     old_cost = product.avg_cost if product.avg_cost else 0.0
                     
-                    # Eğer alış ise stoka ekle, iade ise stoktan düş
                     if new_inv.invoice_type == "alis":
                         new_stock = old_stock + qty
                         if new_stock > 0:
@@ -463,7 +466,7 @@ def invoices():
             db.session.commit()
             return redirect("/invoices")
     
-    all_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.date.desc()).all()
+    all_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.date.asc()).all()
     suppliers = Supplier.query.all()
     products = Product.query.all()
     return render_template("invoices.html", invoices=all_invoices, suppliers=suppliers, products=products, active_period=active_period)
@@ -534,9 +537,9 @@ def delete_invoice_item(item_id):
         
         if product:
             if inv.invoice_type == "alis":
-                product.stock_quantity -= item.quantity # Alışı silince stoktan düş
+                product.stock_quantity -= item.quantity 
             else:
-                product.stock_quantity += item.quantity # İadeyi silince depoya geri girer
+                product.stock_quantity += item.quantity 
         
         inv.total_net -= item.net_total
         inv.total_vat -= item.vat_amount
@@ -650,7 +653,7 @@ def wastes():
             
             last_invoice_item = InvoiceItem.query.join(Invoice).filter(
                 InvoiceItem.product_id == product_id,
-                Invoice.invoice_type == "alis" # Fire maliyetini sadece "Alış" faturasından çekeriz
+                Invoice.invoice_type == "alis"
             ).order_by(Invoice.date.desc()).first()
             
             if last_invoice_item and last_invoice_item.quantity > 0:
@@ -713,7 +716,6 @@ def delete_expense(id):
         db.session.delete(exp)
         db.session.commit()
     return redirect("/expenses")
-
 
 # =========================
 # KÂR & PRİM RAPORU
