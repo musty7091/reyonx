@@ -14,6 +14,7 @@ class Period(db.Model):
     total_waste_cost = db.Column(db.Numeric(15, 2), default=0.0)
     total_expenses = db.Column(db.Numeric(15, 2), default=0.0)
     net_profit = db.Column(db.Numeric(15, 2), default=0.0)
+    bonus_rate = db.Column(db.Numeric(5, 2), nullable=True)  # YENİ: O döneme ait mühürlü prim oranı
 
 class Supplier(db.Model):
     id = db.Column(db.Integer, primary_key=True)

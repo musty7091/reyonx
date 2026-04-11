@@ -1,12 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, current_app, send_file
 from database import db
-from models import Sale, Waste, Expense, Period, SystemSetting, SaleItem, Product
+from models import Sale, Waste, Expense, Period, SystemSetting, SaleItem, Product, Invoice, Payment
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import func
 import io
 
-# Gerçek Excel dosyası üretmek için gerekli kütüphaneler
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 
@@ -24,6 +23,23 @@ def get_bonus_rate():
     rate_setting = SystemSetting.query.filter_by(setting_key="bonus_rate").first()
     return Decimal(rate_setting.setting_value) if rate_setting else Decimal("5")
 
+def calculate_debt_at_time(end_time):
+    query_inv = Invoice.query
+    query_pay = Payment.query
+    
+    if end_time:
+        query_inv = query_inv.filter(Invoice.date <= end_time)
+        query_pay = query_pay.filter(Payment.date <= end_time)
+        
+    invoices = query_inv.all()
+    payments = query_pay.all()
+    
+    t_alis = sum([inv.total_amount for inv in invoices if inv.invoice_type == "alis"], Decimal('0.00'))
+    t_iade = sum([inv.total_amount for inv in invoices if inv.invoice_type == "iade"], Decimal('0.00'))
+    t_paid = sum([pay.amount for pay in payments], Decimal('0.00'))
+    
+    return t_alis - t_iade - t_paid
+
 @report_bp.route("/report")
 def report():
     active_period = get_active_period()
@@ -40,8 +56,11 @@ def report():
 
     net_profit = gross_profit - total_waste_cost - total_expenses
     
+    # Canlı raporda her zaman Ayarlardaki güncel oran kullanılır
     bonus_rate = get_bonus_rate()
     bonus = (net_profit * (bonus_rate / Decimal("100"))) if net_profit > Decimal('0') else Decimal('0.00')
+    
+    current_debt = calculate_debt_at_time(None)
 
     return render_template(
         "profit_report.html",
@@ -54,7 +73,8 @@ def report():
         net_profit=net_profit,
         bonus=bonus,
         bonus_rate=bonus_rate,
-        wastes=wastes
+        wastes=wastes,
+        current_debt=current_debt
     )
 
 @report_bp.route("/period/close", methods=["POST"])
@@ -76,6 +96,10 @@ def close_period():
     active_period.total_waste_cost = t_waste
     active_period.total_expenses = t_exp
     active_period.net_profit = n_prof
+    
+    # YENİ: Kapanış anındaki prim oranını döneme kalıcı olarak mühürlüyoruz
+    active_period.bonus_rate = get_bonus_rate() 
+    
     active_period.end_date = datetime.utcnow()
     active_period.is_active = False 
 
@@ -94,8 +118,12 @@ def periods():
 @report_bp.route("/period/archive/<int:id>")
 def view_archive(id):
     period = Period.query.get_or_404(id)
-    bonus_rate = get_bonus_rate()
+    
+    # YENİ: Eğer dönemin mühürlü bir oranı varsa onu kullan, yoksa mecburen günceli al
+    bonus_rate = period.bonus_rate if period.bonus_rate is not None else get_bonus_rate()
     bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
+    
+    period_debt = calculate_debt_at_time(period.end_date)
     
     sold_items = db.session.query(
         Product.name,
@@ -110,15 +138,19 @@ def view_archive(id):
         period=period, 
         bonus=bonus,
         bonus_rate=bonus_rate,
-        sold_items=sold_items
+        sold_items=sold_items,
+        period_debt=period_debt
     )
 
-# YENİ: Gerçek Excel (.xlsx) İndirme Rotası
 @report_bp.route("/period/export/<int:id>")
 def export_excel(id):
     period = Period.query.get_or_404(id)
-    bonus_rate = get_bonus_rate()
+    
+    # YENİ: Excel'de de mühürlü oranı kullanıyoruz
+    bonus_rate = period.bonus_rate if period.bonus_rate is not None else get_bonus_rate()
     bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
+    
+    period_debt = calculate_debt_at_time(period.end_date)
 
     sold_items = db.session.query(
         Product.name,
@@ -128,27 +160,22 @@ def export_excel(id):
      .filter(Sale.period_id == period.id)\
      .group_by(Product.id).order_by(func.sum(SaleItem.quantity).desc()).all()
 
-    # Excel dosyasını (Workbook) oluşturuyoruz
     wb = Workbook()
     ws = wb.active
     ws.title = "Dönem Raporu"
 
-    # Stil Ayarları (Kalın Yazı ve Ortalama)
     bold_font = Font(bold=True)
     center_aligned_text = Alignment(horizontal="center")
 
-    # ANA BAŞLIK
     ws.merge_cells('A1:B1')
     ws['A1'] = "REYONX İŞLETME RAPORU"
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = center_aligned_text
 
-    # BİLGİLER
     ws.append(["Dönem Adı:", period.name])
     ws.append(["Kapanış Tarihi:", period.end_date.strftime('%d.%m.%Y') if period.end_date else '-'])
-    ws.append([]) # Boş satır
+    ws.append([])
 
-    # FİNANSAL ÖZET
     ws.append(["FİNANSAL ÖZET", ""])
     ws[f'A{ws.max_row}'].font = bold_font
     
@@ -163,9 +190,13 @@ def export_excel(id):
     ws[f'B{ws.max_row}'].font = bold_font
     
     ws.append([f"Hesaplanan Personel Primi (%{bonus_rate}):", f"{bonus:.2f} ₺"])
-    ws.append([]) # Boş satır
+    
+    ws.append(["DÖNEM SONU TİCARİ BORÇ:", f"{period_debt:.2f} ₺"])
+    ws[f'A{ws.max_row}'].font = bold_font
+    ws[f'B{ws.max_row}'].font = bold_font
+    
+    ws.append([]) 
 
-    # SATILAN ÜRÜNLER LİSTESİ
     ws.append(["BU DÖNEM SATILAN ÜRÜNLER", ""])
     ws[f'A{ws.max_row}'].font = bold_font
     
@@ -179,11 +210,9 @@ def export_excel(id):
         for item in sold_items:
             ws.append([item.name, item.total_quantity])
 
-    # Sütun Genişliklerini Estetik Olarak Ayarlama
     ws.column_dimensions['A'].width = 35
     ws.column_dimensions['B'].width = 25
 
-    # Dosyayı hafızaya alıp tarayıcıya yolluyoruz
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
