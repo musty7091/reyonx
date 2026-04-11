@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">Dönem Arşivi (Geçmiş Raporlar)</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Dönem Arşivi ve Kayıtlar</h2>
+    </div>
 
     <div class="card shadow-sm">
         <div class="card-body">
@@ -9,32 +11,36 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Dönem Adı</th>
+                        <th>Başlangıç Tarihi</th>
+                        <th>Kapanış Tarihi</th>
                         <th>Durum</th>
-                        <th>Ciro (Gelir)</th>
-                        <th>Satış Maliyeti</th>
-                        <th>Fire / Gider</th>
-                        <th>Net Kâr</th>
+                        <th class="text-end">İşlemler</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in periods %}
                     <tr>
-                        <td><strong>{{ p.name }}</strong><br><small class="text-muted">{{ p.start_date.strftime('%d.%m.%Y') }}</small></td>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td>{{ p.start_date.strftime('%d.%m.%Y') }}</td>
                         <td>
-                            {% if p.is_active %}
-                            <span class="badge bg-success">Şu an Aktif</span>
+                            {% if p.end_date %}
+                                {{ p.end_date.strftime('%d.%m.%Y') }}
                             {% else %}
-                            <span class="badge bg-secondary">Kapandı (Arşiv)</span>
+                                -
                             {% endif %}
                         </td>
-                        <td>{{ "%.2f"|format(p.total_revenue) }} TL</td>
-                        <td>{{ "%.2f"|format(p.total_cost) }} TL</td>
-                        <td class="text-danger">-{{ "%.2f"|format(p.total_waste_cost + p.total_expenses) }} TL</td>
                         <td>
                             {% if p.is_active %}
-                                <span class="text-muted small">Dönem kapanınca hesaplanır</span>
+                                <span class="badge bg-success">Şu Anki Aktif Dönem</span>
                             {% else %}
-                                <strong class="text-success">{{ "%.2f"|format(p.net_profit) }} TL</strong>
+                                <span class="badge bg-secondary">Kapalı / Arşiv</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if p.is_active %}
+                                <a href="/report" class="btn btn-primary btn-sm">Canlı Raporu Gör</a>
+                            {% else %}
+                                <a href="/period/archive/{{ p.id }}" class="btn btn-outline-dark btn-sm">📁 Arşiv Raporunu Gör</a>
                             {% endif %}
                         </td>
                     </tr>

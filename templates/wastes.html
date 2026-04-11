@@ -1,45 +1,98 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Fire ve Kayıp Girişi</h2>
+<div class="container mt-4">
+    <h2 class="mb-4">Fire ve Kayıp Girişi</h2>
 
-<div class="card p-4 mb-4">
-    <form method="POST" class="row g-3">
-        <div class="col-md-4">
-            <select name="product_id" class="form-control" required>
-                <option value="">Ürün Seçin</option>
-                {% for p in products %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-                {% endfor %}
-            </select>
+    {% if error %}
+    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
+    {% endif %}
+
+    <div class="card p-4 mb-4 shadow-sm border-warning border-start border-4">
+        <h5 class="card-title mb-3">Çöpe Giden / Bozulan Ürün Kaydet</h5>
+        <form method="POST" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label text-muted small">Ürün Seçin</label>
+                <select name="product_id" class="form-select" required>
+                    <option value="" disabled selected>Ürün Seçin...</option>
+                    {% for p in products %}
+                    <option value="{{ p.id }}">{{ p.name }} (Stok: {{ p.stock_quantity }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-muted small">Miktar</label>
+                <input name="quantity" type="number" step="0.01" class="form-control" placeholder="Örn: 2" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-muted small">Sebep</label>
+                <input name="reason" class="form-control" placeholder="Örn: Son kullanma tarihi geçti, kırıldı vb.">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-warning w-100 text-dark fw-bold">Fireyi İşle</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Ürün</th>
+                        <th>Miktar</th>
+                        <th>Maliyet Kaybı</th>
+                        <th>Neden</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in wastes.items %}
+                    <tr>
+                        <td>{{ w.date.strftime('%d.%m.%Y - %H:%M') }}</td>
+                        <td><strong>{{ w.product.name }}</strong></td>
+                        <td>{{ w.quantity }} {{ w.product.unit }}</td>
+                        <td class="text-danger">-{{ "%.2f"|format(w.quantity * w.cost) }} TL</td>
+                        <td class="text-muted">{{ w.reason }}</td>
+                        <td class="text-end">
+                            <a href="/waste/delete/{{ w.id }}" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Bu kaydı silerseniz ürün stoğa geri eklenecektir. Emin misiniz?')">Sil (Geri Al)</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Bu dönemde kayıtlı bir fire bulunmuyor.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% if wastes.pages > 1 %}
+            <nav aria-label="Sayfa Gezinme" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if wastes.has_prev %}
+                    <li class="page-item"><a class="page-link" href="/wastes?page={{ wastes.prev_num }}">Önceki</a></li>
+                    {% endif %}
+                    
+                    {% for page_num in wastes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == wastes.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="/wastes?page={{ page_num }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if wastes.has_next %}
+                    <li class="page-item"><a class="page-link" href="/wastes?page={{ wastes.next_num }}">Sonraki</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            
         </div>
-        <div class="col-md-2">
-            <input name="quantity" type="number" step="0.01" class="form-control" placeholder="Miktar" required>
-        </div>
-        <div class="col-md-4">
-            <input name="reason" class="form-control" placeholder="Neden? (Bozulma, dökülme vb.)">
-        </div>
-        <div class="col-md-2">
-            <button class="btn btn-danger w-100">Kaydet</button>
-        </div>
-    </form>
+    </div>
 </div>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>Ürün</th>
-            <th>Miktar</th>
-            <th>Neden</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for w in wastes %}
-        <tr>
-            <td>{{ w.product.name }}</td>
-            <td>{{ w.quantity }}</td>
-            <td>{{ w.reason }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
 {% endblock %}

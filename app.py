@@ -1,5 +1,6 @@
 from flask import Flask
 from database import db
+from flask_migrate import Migrate
 import os
 
 # Rota (Sayfa) dosyalarımızı içeri aktarıyoruz
@@ -19,13 +20,16 @@ from models import User
 app = Flask(__name__)
 
 # Ayarlar
-app.config["SECRET_KEY"] = "secret"
+app.config["SECRET_KEY"] = "super-secret-key"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///reyonx.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["BONUS_RATE"] = 0.05  # Prim oranı %5
 
 # Veritabanını uygulamaya bağlıyoruz
 db.init_app(app)
+
+# Esnek Veritabanı (Migration) sistemini başlatıyoruz
+migrate = Migrate(app, db)
 
 # Odalarımızı (Blueprints) ana binaya (uygulamaya) bağlıyoruz
 app.register_blueprint(auth_bp)

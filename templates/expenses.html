@@ -3,6 +3,10 @@
 <div class="container mt-4">
     <h2 class="mb-4">İşletme Giderleri</h2>
 
+    {% if error %}
+    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
+    {% endif %}
+
     <div class="card p-4 mb-4 shadow-sm border-danger border-start border-4">
         <h5 class="card-title mb-3">Yeni Gider Kaydet</h5>
         <form method="POST" action="/expenses" class="row g-3">
@@ -32,7 +36,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for e in expenses %}
+                    {% for e in expenses.items %}
                     <tr>
                         <td>{{ e.date.strftime('%d.%m.%Y - %H:%M') }}</td>
                         <td>{{ e.description }}</td>
@@ -48,6 +52,33 @@
                     {% endfor %}
                 </tbody>
             </table>
+            
+            {% if expenses.pages > 1 %}
+            <nav aria-label="Sayfa Gezinme" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if expenses.has_prev %}
+                    <li class="page-item"><a class="page-link" href="/expenses?page={{ expenses.prev_num }}">Önceki</a></li>
+                    {% endif %}
+                    
+                    {% for page_num in expenses.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == expenses.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="/expenses?page={{ page_num }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if expenses.has_next %}
+                    <li class="page-item"><a class="page-link" href="/expenses?page={{ expenses.next_num }}">Sonraki</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            
         </div>
     </div>
 </div>

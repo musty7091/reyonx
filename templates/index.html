@@ -1,108 +1,217 @@
 {% extends "base.html" %}
+
 {% block content %}
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <title>ReyonX</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    .dashboard-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: none;
+        transition: transform 0.2s;
+    }
+    .dashboard-card:hover { transform: translateY(-5px); }
+    .icon-box {
+        width: 48px; height: 48px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center; font-size: 24px;
+    }
+    .bg-light-primary { background: #e0e7ff; color: #4f46e5; }
+    .bg-light-success { background: #dcfce7; color: #16a34a; }
+    .bg-light-warning { background: #fef9c3; color: #ca8a04; }
+    .bg-light-danger { background: #fee2e2; color: #dc2626; }
+    .bg-light-info { background: #cffafe; color: #0891b2; }
+    
+    .quick-action-btn {
+        padding: 15px; border-radius: 12px; text-align: center;
+        text-decoration: none; color: white !important; font-weight: 600;
+        display: block; transition: opacity 0.2s;
+    }
+    .quick-action-btn:hover { opacity: 0.85; }
 
-    <style>
-        body {
-            background: #f1f5f9;
-            color: #0f172a;
-        }
+    .list-group-item {
+        border-left: none; border-right: none; border-radius: 0;
+        padding: 12px 0;
+    }
+    .list-group-item:first-child { border-top: none; }
+    .list-group-item:last-child { border-bottom: none; }
+</style>
 
-        h1 {
-            font-weight: 700;
-        }
-
-        .card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-        }
-
-        .table thead {
-            color: #64748b;
-        }
-
-        .table-hover tbody tr:hover {
-            background-color: #f8fafc;
-        }
-
-        input {
-            background: #f9fafb !important;
-            border: 1px solid #e2e8f0 !important;
-            color: #0f172a !important;
-        }
-
-        input::placeholder {
-            color: #94a3b8;
-        }
-
-        .btn-success {
-            background: #22c55e;
-            border: none;
-        }
-
-        .btn-warning {
-            background: #facc15;
-            border: none;
-            color: black;
-        }
-
-        .btn-danger {
-            background: #ef4444;
-            border: none;
-        }
-
-        .container {
-            max-width: 1100px;
-        }
-    </style>
-</head>
-<body>
-
-<div class="container mt-5">
-
-    <!-- 🔥 DASHBOARD -->
-    <div class="row mb-4">
-
-        <div class="col-md-4">
-            <div class="card p-3 text-center">
-                <h6>Toplam Ürün</h6>
-                <h3>{{ total_products }}</h3>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card p-3 text-center">
-                <h6>Toplam Değer</h6>
-                <h3>{{ total_value }} TL</h3>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card p-3 text-center">
-                <h6>Ortalama Fiyat</h6>
-                <h3>{{ avg_price }} TL</h3>
-            </div>
-        </div>
-
+<div class="container-fluid mt-3">
+    <div class="mb-4">
+        <h2 class="fw-bold mb-0">Hoş Geldiniz, Patron 👋</h2>
+        <p class="text-muted">İşte <b>{{ active_period.name }}</b> dönemi özeti.</p>
     </div>
 
-    <!-- 🔥 BAŞLIK -->
-    <h1 class="mb-4">🚀 ReyonX Ürün Yönetimi</h1>
+    <div class="row g-3 mb-4">
+        <div class="col-md col-sm-6">
+            <div class="card dashboard-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small fw-bold text-uppercase">Toplam Ciro</p>
+                        <h4 class="mb-0 fw-bold">{{ "%.2f"|format(total_revenue) }} ₺</h4>
+                    </div>
+                    <div class="icon-box bg-light-primary">💰</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md col-sm-6">
+            <div class="card dashboard-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small fw-bold text-uppercase">Net Kâr</p>
+                        <h4 class="mb-0 fw-bold {% if total_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(total_profit) }} ₺
+                        </h4>
+                    </div>
+                    <div class="icon-box bg-light-success">📈</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md col-sm-6">
+            <div class="card dashboard-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small fw-bold text-uppercase">Stok Değeri</p>
+                        <h4 class="mb-0 fw-bold text-warning">{{ "%.2f"|format(total_value) }} ₺</h4>
+                    </div>
+                    <div class="icon-box bg-light-warning">📦</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md col-sm-6">
+            <div class="card dashboard-card p-3 h-100 border-danger border-start border-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small fw-bold text-uppercase">Toplam Cari Borç</p>
+                        <h4 class="mb-0 fw-bold text-danger">{{ "%.2f"|format(total_debt) }} ₺</h4>
+                    </div>
+                    <div class="icon-box bg-light-danger">💳</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md col-sm-12">
+            <div class="card dashboard-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small fw-bold text-uppercase">Ürün Çeşidi</p>
+                        <h4 class="mb-0 fw-bold text-secondary">{{ total_products }}</h4>
+                    </div>
+                    <div class="icon-box bg-light-info">🏷️</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- 🔥 FORM -->
-    <div class="card p-4 mb-4">
+    <div class="row g-4 mb-4">
+        <div class="col-md-8">
+            <div class="card dashboard-card p-4">
+                <h5 class="fw-bold mb-3">Gelir - Gider Dağılımı</h5>
+                <div style="height: 280px;">
+                    <canvas id="kazancGrafigi"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card dashboard-card p-4 h-100">
+                <h5 class="fw-bold mb-4">Hızlı İşlemler</h5>
+                <a href="/sales" class="quick-action-btn mb-3 shadow-sm" style="background-color: #4f46e5;">+ Satış Yükle</a>
+                <a href="/invoices" class="quick-action-btn mb-3 shadow-sm" style="background-color: #16a34a;">+ Fatura Gir</a>
+                <a href="/expenses" class="quick-action-btn mb-3 shadow-sm" style="background-color: #dc2626;">- Gider Ekle</a>
+                <a href="/inventory" class="quick-action-btn shadow-sm" style="background-color: #475569;">📋 Stok Listesi</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
         
+        <div class="col-md-4">
+            <div class="card dashboard-card p-4 h-100 border-success border-top border-4">
+                <h6 class="fw-bold mb-3 text-success">⭐ En Çok Satan Ürünler</h6>
+                <ul class="list-group list-group-flush">
+                    {% for p in top_products %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="fw-bold">{{ p.name }}</span>
+                        <span class="badge bg-success rounded-pill">{{ p.total_sold }} satıldı</span>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-muted px-0">Henüz satış verisi yok.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card dashboard-card p-4 h-100 border-warning border-top border-4">
+                <h6 class="fw-bold mb-3 text-warning text-dark">⚠️ Kritik Stok Uyarıları</h6>
+                <ul class="list-group list-group-flush">
+                    {% for p in critical_stocks %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span class="fw-bold">{{ p.name }}</span>
+                        {% if p.stock_quantity <= 0 %}
+                            <span class="badge bg-danger rounded-pill">Tükendi! ({{ p.stock_quantity }})</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark rounded-pill">Azaldı ({{ p.stock_quantity }})</span>
+                        {% endif %}
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-muted px-0">Tüm ürünlerin stoğu yeterli seviyede.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card dashboard-card p-4 h-100 border-info border-top border-4">
+                <h6 class="fw-bold mb-3 text-info text-dark">⚡ Son Hareketler</h6>
+                <ul class="list-group list-group-flush">
+                    {% for act in recent_activities %}
+                    <li class="list-group-item px-0">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <span class="text-truncate" style="max-width: 60%;"><span class="me-2">{{ act.icon }}</span><small class="fw-bold">{{ act.desc }}</small></span>
+                            <span class="text-{{ act.color }} fw-bold small">
+                                {% if act.color == 'danger' %}-{% else %}+{% endif %}{{ "%.2f"|format(act.amount) }} ₺
+                            </span>
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-muted px-0">Henüz bir işlem yapılmadı.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
     </div>
 
 </div>
 
-</body>
-</html>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById('kazancGrafigi').getContext('2d');
+        const chartData = {{ chart_data | tojson }};
+        
+        let veriDizisi = [chartData.net_kar, chartData.maliyet, chartData.giderler];
+        if (veriDizisi[0] === 0 && veriDizisi[1] === 0 && veriDizisi[2] === 0) {
+            veriDizisi = [0.1, 0.1, 0.1];
+        }
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Net Kâr', 'Maliyet', 'Giderler'],
+                datasets: [{
+                    data: veriDizisi,
+                    backgroundColor: ['#16a34a', '#facc15', '#dc2626'],
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    });
+</script>
 {% endblock %}

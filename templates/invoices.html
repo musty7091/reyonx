@@ -8,6 +8,10 @@
         </button>
     </div>
 
+    {% if error %}
+    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
+    {% endif %}
+
     <div class="card shadow-sm">
         <div class="card-body">
             <table class="table table-hover align-middle">
@@ -24,7 +28,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for inv in invoices %}
+                    {% for inv in invoices.items %}
                     <tr>
                         <td>{{ inv.date.strftime('%d.%m.%Y') }}</td>
                         <td>
@@ -50,9 +54,46 @@
                             <a href="/invoice/delete/{{ inv.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu faturayı silersen içindeki tüm ürünlerin stokları eski haline dönecektir. Emin misin?')">Sil</a>
                         </td>
                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">Bu dönemde henüz kayıtlı bir fatura bulunmuyor.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            
+            {% if invoices.pages > 1 %}
+            <nav aria-label="Sayfa Gezinme" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    
+                    {% if invoices.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="/invoices?page={{ invoices.prev_num }}">Önceki</a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in invoices.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == invoices.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="/invoices?page={{ page_num }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if invoices.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="/invoices?page={{ invoices.next_num }}">Sonraki</a>
+                    </li>
+                    {% endif %}
+                    
+                </ul>
+            </nav>
+            {% endif %}
+            
         </div>
     </div>
 </div>

@@ -31,7 +31,7 @@ def report():
 
     net_profit = gross_profit - total_waste_cost - total_expenses
     
-    # Prim oranını config dosyasından çekip Decimal formata çeviriyoruz
+    # Prim oranını config dosyasından çekiyoruz
     bonus_rate = Decimal(str(current_app.config.get("BONUS_RATE", 0.05)))
     bonus = (net_profit * bonus_rate) if net_profit > Decimal('0') else Decimal('0.00')
 
@@ -62,6 +62,7 @@ def close_period():
     t_exp = sum([e.amount for e in expenses], Decimal('0.00'))
     n_prof = (t_rev - t_cost) - t_waste - t_exp
 
+    # KAPATMA ANINDA RAKAMLARI MÜHÜRLÜYORUZ (Arşivleme)
     active_period.total_revenue = t_rev
     active_period.total_cost = t_cost
     active_period.total_waste_cost = t_waste
@@ -79,5 +80,21 @@ def close_period():
 
 @report_bp.route("/periods")
 def periods():
+    # En yeni dönem en üstte görünecek şekilde tüm dönemleri listeler
     all_periods = Period.query.order_by(Period.id.desc()).all()
     return render_template("periods.html", periods=all_periods)
+
+@report_bp.route("/period/archive/<int:id>")
+def view_archive(id):
+    # Geçmiş bir dönemin mühürlenmiş raporunu açar
+    period = Period.query.get_or_404(id)
+    
+    # Arşiv raporunda prim hesabını o anki mühürlü kâr üzerinden tekrar yapar
+    bonus_rate = Decimal(str(current_app.config.get("BONUS_RATE", 0.05)))
+    bonus = (period.net_profit * bonus_rate) if period.net_profit > Decimal('0') else Decimal('0.00')
+    
+    return render_template(
+        "closed_report.html", 
+        period=period, 
+        bonus=bonus
+    )

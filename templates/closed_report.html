@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">{{ period.name }} - Arşivlenmiş Dönem Raporu</h2>
+            <p class="text-muted small">Bu dönem {{ period.end_date.strftime('%d.%m.%Y') }} tarihinde mühürlenerek kapatılmıştır.</p>
+        </div>
+        <a href="/periods" class="btn btn-secondary">Arşive Dön</a>
+    </div>
+
+    <div class="alert alert-secondary border-dark shadow-sm py-3 mb-4">
+        <i class="me-2">🔒</i> <strong>Bilgi:</strong> Bu rapor arşivlenmiş verilerden oluşmaktadır. Kapatılan dönemlerdeki veriler üzerinde değişiklik yapılamaz.
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-primary border-start border-4">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small fw-bold">Toplam Satış (Ciro)</h6>
+                    <h2 class="fw-bold text-primary">{{ "%.2f"|format(period.total_revenue) }} TL</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-warning border-start border-4">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small fw-bold">Satılan Malın Maliyeti</h6>
+                    <h2 class="fw-bold text-warning">{{ "%.2f"|format(period.total_cost) }} TL</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-success border-start border-4">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small fw-bold">Brüt Kâr</h6>
+                    <h2 class="fw-bold text-success">{{ "%.2f"|format(period.total_revenue - period.total_cost) }} TL</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-danger border-start border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small fw-bold">Fire ve Kayıp Giderleri</h6>
+                    <h3 class="fw-bold text-danger">-{{ "%.2f"|format(period.total_waste_cost) }} TL</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-danger border-start border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small fw-bold">İşletme Giderleri</h6>
+                    <h3 class="fw-bold text-danger">-{{ "%.2f"|format(period.total_expenses) }} TL</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm bg-dark text-white border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-uppercase small fw-bold opacity-75">Gerçek Net Kâr</h6>
+                    <h3 class="fw-bold {% if period.net_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ "%.2f"|format(period.net_profit) }} TL
+                    </h3>
+                    <hr class="my-2 opacity-25">
+                    <small class="d-block mb-1">Hesaplanan Personel Primi (%5)</small>
+                    <h5 class="fw-bold text-warning">{{ "%.2f"|format(bonus) }} TL</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

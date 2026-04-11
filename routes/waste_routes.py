@@ -16,43 +16,68 @@ def get_active_period():
 @waste_bp.route("/wastes", methods=["GET", "POST"])
 def wastes():
     active_period = get_active_period()
-    products = Product.query.all()
+    error = None
+    
     if request.method == "POST":
-        product_id = request.form.get("product_id")
-        quantity = request.form.get("quantity")
-        reason = request.form.get("reason")
-        
-        if product_id and quantity:
-            product = Product.query.get(product_id)
-            qty_dec = Decimal(quantity)
+        try:
+            product_id = request.form.get("product_id")
+            quantity = request.form.get("quantity")
+            reason = request.form.get("reason")
             
-            last_invoice_item = InvoiceItem.query.join(Invoice).filter(
-                InvoiceItem.product_id == product_id,
-                Invoice.invoice_type == "alis"
-            ).order_by(Invoice.date.desc()).first()
-            
-            if last_invoice_item and Decimal(last_invoice_item.quantity) > Decimal('0'):
-                # Çöpe giden ürünün maliyetini KDV Dahil (line_total) fiyatından düşüyoruz
-                cost_at_waste = Decimal(last_invoice_item.line_total) / Decimal(last_invoice_item.quantity)
-            else:
-                cost_at_waste = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
-            
-            new_waste = Waste(
-                product_id=product_id, 
-                period_id=active_period.id,
-                quantity=qty_dec, 
-                cost=cost_at_waste, 
-                reason=reason
-            )
-            db.session.add(new_waste)
-            
-            if product:
-                if getattr(product, 'stock_quantity', None) is None:
-                    product.stock_quantity = Decimal('0.00')
-                product.stock_quantity = Decimal(product.stock_quantity) - qty_dec
+            if product_id and quantity:
+                product = Product.query.get(product_id)
+                qty_dec = Decimal(quantity)
                 
-            db.session.commit()
-        return redirect("/wastes")
+                last_invoice_item = InvoiceItem.query.join(Invoice).filter(
+                    InvoiceItem.product_id == product_id,
+                    Invoice.invoice_type == "alis"
+                ).order_by(Invoice.date.desc()).first()
+                
+                if last_invoice_item and Decimal(last_invoice_item.quantity) > Decimal('0'):
+                    cost_at_waste = Decimal(last_invoice_item.line_total) / Decimal(last_invoice_item.quantity)
+                else:
+                    cost_at_waste = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
+                
+                new_waste = Waste(
+                    product_id=product_id, 
+                    period_id=active_period.id,
+                    quantity=qty_dec, 
+                    cost=cost_at_waste, 
+                    reason=reason
+                )
+                db.session.add(new_waste)
+                
+                if product:
+                    if getattr(product, 'stock_quantity', None) is None:
+                        product.stock_quantity = Decimal('0.00')
+                    product.stock_quantity = Decimal(product.stock_quantity) - qty_dec
+                    
+                db.session.commit()
+            return redirect("/wastes")
+        except Exception as e:
+            # Hata yakalandı, sistemi korumaya al ve geri sar!
+            db.session.rollback()
+            error = "Fire kaydedilirken bir sorun oluştu. Lütfen bilgileri doğru girdiğinizden emin olun."
+            print(f"Sistem Hatası: {e}")
 
-    all_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).all()
-    return render_template("wastes.html", wastes=all_wastes, products=products, active_period=active_period)
+    # SAYFALAMA
+    page = request.args.get('page', 1, type=int)
+    paginated_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).paginate(page=page, per_page=10)
+    
+    products = Product.query.filter_by(is_active=True).all()
+    return render_template("wastes.html", wastes=paginated_wastes, products=products, active_period=active_period, error=error)
+
+@waste_bp.route("/waste/delete/<int:id>")
+def delete_waste(id):
+    try:
+        waste = Waste.query.get(id)
+        if waste:
+            # Yanlış girilen fireyi silersek ürün depoya aynen geri döner
+            product = Product.query.get(waste.product_id)
+            if product:
+                product.stock_quantity = Decimal(product.stock_quantity) + Decimal(waste.quantity)
+            db.session.delete(waste)
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+    return redirect("/wastes")
