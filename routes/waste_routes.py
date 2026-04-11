@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Waste, Product, InvoiceItem, Invoice, Period
+from models import Waste, Product, InvoiceItem, Invoice, Period
 from decimal import Decimal
 
 # Bu dosyanın "fire" (waste) sayfalarından sorumlu olduğunu belirtiyoruz

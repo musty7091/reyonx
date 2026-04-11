@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from database import db
-from eskimodels import Product, Invoice, Sale, Waste, Expense, Period
+from models import Product, Invoice, Sale, Waste, Expense, Period
 from decimal import Decimal
 
 # Bu dosyanın ana sayfa ve genel envanter sayfalarından sorumlu olduğunu belirtiyoruz

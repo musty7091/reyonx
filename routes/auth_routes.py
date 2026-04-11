@@ -1,5 +1,5 @@
 from flask import Blueprint, request, redirect, render_template, session
-from eskimodels import User
+from models import User
 
 # Bu dosyayı bir modül (Blueprint) olarak tanımlıyoruz
 auth_bp = Blueprint("auth", __name__)

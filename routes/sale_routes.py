@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Sale, SaleItem, Product, Period
+from models import Sale, SaleItem, Product, Period
 from decimal import Decimal
 
 # Bu dosyanın "satış" (sale) sayfalarından sorumlu olduğunu belirtiyoruz

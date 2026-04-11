@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Expense, Period
+from models import Expense, Period
 from decimal import Decimal
 
 # Bu dosyanın "giderler" (expense) sayfalarından sorumlu olduğunu belirtiyoruz

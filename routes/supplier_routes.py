@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Supplier, Invoice, Payment
+from models import Supplier, Invoice, Payment
 from decimal import Decimal
 
 # Bu dosyanın "tedarikçiler" (supplier) sayfalarından sorumlu olduğunu belirtiyoruz

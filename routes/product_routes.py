@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Product, Supplier
+from models import Product, Supplier
 
 # Bu dosyanın "ürünler" (product) sayfalarından sorumlu olduğunu sisteme söylüyoruz
 product_bp = Blueprint("product", __name__)

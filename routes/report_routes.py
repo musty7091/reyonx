@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, current_app
 from database import db
-from eskimodels import Sale, Waste, Expense, Period
+from models import Sale, Waste, Expense, Period
 from datetime import datetime
 from decimal import Decimal
 

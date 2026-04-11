@@ -1,6 +1,6 @@
 from flask import Blueprint, request, redirect, render_template
 from database import db
-from eskimodels import Invoice, InvoiceItem, Product, Supplier, Period
+from models import Invoice, InvoiceItem, Product, Supplier, Period
 from decimal import Decimal
 from datetime import datetime
 
