@@ -61,7 +61,7 @@
                 <tbody>
                     {% for t in transactions %}
                     <tr>
-                        <td class="text-nowrap">{{ t.date.strftime('%d.%m.%Y - %H:%M') }}</td>
+                        <td class="text-nowrap">{{ t.date.strftime('%d.%m.%Y') }}</td>
                         <td class="text-nowrap">
                             {% if t.type == "Alış Faturası" %}
                                 <span class="badge bg-danger">Alış Faturası</span>
