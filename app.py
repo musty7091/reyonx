@@ -14,7 +14,7 @@ from routes.expense_routes import expense_bp
 from routes.report_routes import report_bp
 
 # Admin kullanıcı oluşturmak için User modelini çağırıyoruz
-from eskimodels import User
+from models import User
 
 app = Flask(__name__)
 

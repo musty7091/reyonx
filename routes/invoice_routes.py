@@ -4,10 +4,8 @@ from models import Invoice, InvoiceItem, Product, Supplier, Period
 from decimal import Decimal
 from datetime import datetime
 
-# Bu dosyanın "faturalar" (invoice) sayfalarından sorumlu olduğunu belirtiyoruz
 invoice_bp = Blueprint("invoice", __name__)
 
-# Yardımcı Fonksiyon: Sistemin hangi ayda (dönemde) çalıştığını bulur
 def get_active_period():
     period = Period.query.filter_by(is_active=True).first()
     if not period:
@@ -27,7 +25,7 @@ def invoices():
         
         product_ids = request.form.getlist("product_id[]")
         quantities = request.form.getlist("quantity[]")
-        unit_prices = request.form.getlist("unit_price[]") 
+        unit_prices = request.form.getlist("unit_price[]") # KULLANICI BURAYA KDV HARİÇ GİRER
         
         if s_id and product_ids:
             new_inv = Invoice(supplier_id=s_id, period_id=active_period.id, invoice_no=invoice_no, invoice_type=invoice_type)
@@ -54,6 +52,7 @@ def invoices():
                 v_rate = Decimal(product.vat_rate) if product else Decimal('20.00')
                 calc_v_rate = Decimal('0.00') if v_rate == Decimal('-1') else v_rate
                 
+                # Sistemin arka planda bulduğu KDV Dahil (Gerçek Cebinden Çıkan) Birim Fiyat:
                 gross_unit = net_unit * (Decimal('1') + (calc_v_rate / Decimal('100')))
                 
                 line_net = net_unit * qty
@@ -77,7 +76,7 @@ def invoices():
                 calc_gross += line_gross
                 
                 if product:
-                    if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                    if getattr(product, 'stock_quantity', None) is None:
                         product.stock_quantity = Decimal('0.00')
                         
                     old_stock = Decimal(product.stock_quantity)
@@ -86,7 +85,8 @@ def invoices():
                     if new_inv.invoice_type == "alis":
                         new_stock = old_stock + qty
                         if new_stock > Decimal('0'):
-                            product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
+                            # DEPO MALİYETİ ARTIK KDV DAHİL (gross_unit) OLARAK KAYDEDİLİYOR
+                            product.avg_cost = ((old_stock * old_cost) + (qty * gross_unit)) / new_stock
                     else:
                         new_stock = old_stock - qty 
                         
@@ -136,7 +136,7 @@ def invoice_detail(id):
         db.session.add(item)
         
         if product:
-            if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+            if getattr(product, 'stock_quantity', None) is None:
                 product.stock_quantity = Decimal('0.00')
             
             old_stock = Decimal(product.stock_quantity)
@@ -145,7 +145,8 @@ def invoice_detail(id):
             if inv.invoice_type == "alis":
                 new_stock = old_stock + qty
                 if new_stock > Decimal('0'):
-                    product.avg_cost = ((old_stock * old_cost) + (qty * net_unit)) / new_stock
+                    # MALİYET KDV DAHİL KAYDEDİLİYOR
+                    product.avg_cost = ((old_stock * old_cost) + (qty * gross_unit)) / new_stock
             else:
                 new_stock = old_stock - qty
                 

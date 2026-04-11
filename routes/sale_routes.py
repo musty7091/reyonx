@@ -3,10 +3,8 @@ from database import db
 from models import Sale, SaleItem, Product, Period
 from decimal import Decimal
 
-# Bu dosyanın "satış" (sale) sayfalarından sorumlu olduğunu belirtiyoruz
 sale_bp = Blueprint("sale", __name__)
 
-# Yardımcı Fonksiyon: İşlemlerin hangi döneme kaydedileceğini bulur
 def get_active_period():
     period = Period.query.filter_by(is_active=True).first()
     if not period:
@@ -21,45 +19,46 @@ def sales():
     if request.method == "POST":
         product_ids = request.form.getlist("product_id[]")
         quantities = request.form.getlist("quantity[]")
-        unit_prices = request.form.getlist("unit_price[]") 
+        unit_prices = request.form.getlist("unit_price[]") # KULLANICI BURAYA KDV DAHİL SATIŞ FİYATI GİRECEK
         
         if product_ids:
             new_sale = Sale(period_id=active_period.id)
             db.session.add(new_sale)
             db.session.flush()
             
-            # Kâr, Zarar ve Maliyet hesaplamaları için kuruş kumbaramızı sıfırlıyoruz
             calc_revenue = Decimal('0.00')
             calc_cost = Decimal('0.00')
             
             for i in range(len(product_ids)):
                 p_id = product_ids[i]
                 qty = Decimal(quantities[i])
-                u_price_net = Decimal(unit_prices[i]) 
+                
+                # Kasadan çekilen KDV DAHİL satış fiyatı
+                u_price_gross = Decimal(unit_prices[i]) 
                 
                 product = Product.query.get(p_id)
-                cost = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
+                # Depodaki maliyetimiz zaten arka planda KDV DAHİL hesaplanmıştı
+                cost_gross = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
                 
-                line_rev_net = qty * u_price_net
-                line_cst = qty * cost
-                line_prf = line_rev_net - line_cst
+                line_rev = qty * u_price_gross
+                line_cst = qty * cost_gross
+                line_prf = line_rev - line_cst
                 
                 item = SaleItem(
                     sale_id=new_sale.id, 
                     product_id=p_id, 
                     quantity=qty, 
-                    unit_sales_price=u_price_net, 
-                    unit_cost=cost, 
-                    line_revenue=line_rev_net, 
+                    unit_sales_price=u_price_gross, 
+                    unit_cost=cost_gross, 
+                    line_revenue=line_rev, 
                     line_profit=line_prf
                 )
                 db.session.add(item)
                 
-                calc_revenue += line_rev_net
+                calc_revenue += line_rev
                 calc_cost += line_cst
                 
                 if product:
-                    # Ürün stoktan düşülürken de ondalıklı sayı güvenliğini alıyoruz
                     if getattr(product, 'stock_quantity', None) is None:
                         product.stock_quantity = Decimal('0.00')
                     product.stock_quantity = Decimal(product.stock_quantity) - qty
@@ -78,7 +77,6 @@ def sales():
 def delete_sale(id):
     sale = Sale.query.get(id)
     if sale:
-        # Bir satışı yanlışlıkla girdiysek ve silersek, içindeki ürünler depoya aynen geri döner
         for item in sale.items:
             product = Product.query.get(item.product_id)
             if product:

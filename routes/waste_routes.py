@@ -3,7 +3,6 @@ from database import db
 from models import Waste, Product, InvoiceItem, Invoice, Period
 from decimal import Decimal
 
-# Bu dosyanın "fire" (waste) sayfalarından sorumlu olduğunu belirtiyoruz
 waste_bp = Blueprint("waste", __name__)
 
 def get_active_period():
@@ -33,7 +32,8 @@ def wastes():
             ).order_by(Invoice.date.desc()).first()
             
             if last_invoice_item and Decimal(last_invoice_item.quantity) > Decimal('0'):
-                cost_at_waste = Decimal(last_invoice_item.net_total) / Decimal(last_invoice_item.quantity)
+                # Çöpe giden ürünün maliyetini KDV Dahil (line_total) fiyatından düşüyoruz
+                cost_at_waste = Decimal(last_invoice_item.line_total) / Decimal(last_invoice_item.quantity)
             else:
                 cost_at_waste = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
             
@@ -47,7 +47,7 @@ def wastes():
             db.session.add(new_waste)
             
             if product:
-                if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                if getattr(product, 'stock_quantity', None) is None:
                     product.stock_quantity = Decimal('0.00')
                 product.stock_quantity = Decimal(product.stock_quantity) - qty_dec
                 
