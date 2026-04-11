@@ -1,0 +1,58 @@
+from flask import Blueprint, request, redirect, render_template
+from database import db
+from eskimodels import Waste, Product, InvoiceItem, Invoice, Period
+from decimal import Decimal
+
+# Bu dosyanın "fire" (waste) sayfalarından sorumlu olduğunu belirtiyoruz
+waste_bp = Blueprint("waste", __name__)
+
+def get_active_period():
+    period = Period.query.filter_by(is_active=True).first()
+    if not period:
+        period = Period(name="1. Dönem")
+        db.session.add(period)
+        db.session.commit()
+    return period
+
+@waste_bp.route("/wastes", methods=["GET", "POST"])
+def wastes():
+    active_period = get_active_period()
+    products = Product.query.all()
+    if request.method == "POST":
+        product_id = request.form.get("product_id")
+        quantity = request.form.get("quantity")
+        reason = request.form.get("reason")
+        
+        if product_id and quantity:
+            product = Product.query.get(product_id)
+            qty_dec = Decimal(quantity)
+            
+            last_invoice_item = InvoiceItem.query.join(Invoice).filter(
+                InvoiceItem.product_id == product_id,
+                Invoice.invoice_type == "alis"
+            ).order_by(Invoice.date.desc()).first()
+            
+            if last_invoice_item and Decimal(last_invoice_item.quantity) > Decimal('0'):
+                cost_at_waste = Decimal(last_invoice_item.net_total) / Decimal(last_invoice_item.quantity)
+            else:
+                cost_at_waste = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
+            
+            new_waste = Waste(
+                product_id=product_id, 
+                period_id=active_period.id,
+                quantity=qty_dec, 
+                cost=cost_at_waste, 
+                reason=reason
+            )
+            db.session.add(new_waste)
+            
+            if product:
+                if not hasattr(product, 'stock_quantity') or product.stock_quantity is None:
+                    product.stock_quantity = Decimal('0.00')
+                product.stock_quantity = Decimal(product.stock_quantity) - qty_dec
+                
+            db.session.commit()
+        return redirect("/wastes")
+
+    all_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).all()
+    return render_template("wastes.html", wastes=all_wastes, products=products, active_period=active_period)
