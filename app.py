@@ -13,6 +13,7 @@ from routes.sale_routes import sale_bp
 from routes.waste_routes import waste_bp
 from routes.expense_routes import expense_bp
 from routes.report_routes import report_bp
+from routes.settings_routes import settings_bp
 
 # Admin kullanıcı oluşturmak için User modelini çağırıyoruz
 from models import User
@@ -41,6 +42,7 @@ app.register_blueprint(sale_bp)
 app.register_blueprint(waste_bp)
 app.register_blueprint(expense_bp)
 app.register_blueprint(report_bp)
+app.register_blueprint(settings_bp)
 
 # BAŞLATMA
 if __name__ == "__main__":

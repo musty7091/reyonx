@@ -120,3 +120,8 @@ class Expense(db.Model):
     date = db.Column(db.DateTime, default=datetime.utcnow)
     
     period = db.relationship("Period")
+
+class SystemSetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    setting_key = db.Column(db.String(50), unique=True, nullable=False)
+    setting_value = db.Column(db.String(100), nullable=False)

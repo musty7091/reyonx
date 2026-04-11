@@ -1,10 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, current_app
+from flask import Blueprint, render_template, request, redirect, current_app, send_file
 from database import db
-from models import Sale, Waste, Expense, Period
+from models import Sale, Waste, Expense, Period, SystemSetting, SaleItem, Product
 from datetime import datetime
 from decimal import Decimal
+from sqlalchemy import func
+import io
 
-# Bu dosyanın raporlama ve dönem işlemlerinden sorumlu olduğunu belirtiyoruz
+# Gerçek Excel dosyası üretmek için gerekli kütüphaneler
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
+
 report_bp = Blueprint("report", __name__)
 
 def get_active_period():
@@ -14,6 +19,10 @@ def get_active_period():
         db.session.add(period)
         db.session.commit()
     return period
+
+def get_bonus_rate():
+    rate_setting = SystemSetting.query.filter_by(setting_key="bonus_rate").first()
+    return Decimal(rate_setting.setting_value) if rate_setting else Decimal("5")
 
 @report_bp.route("/report")
 def report():
@@ -31,9 +40,8 @@ def report():
 
     net_profit = gross_profit - total_waste_cost - total_expenses
     
-    # Prim oranını config dosyasından çekiyoruz
-    bonus_rate = Decimal(str(current_app.config.get("BONUS_RATE", 0.05)))
-    bonus = (net_profit * bonus_rate) if net_profit > Decimal('0') else Decimal('0.00')
+    bonus_rate = get_bonus_rate()
+    bonus = (net_profit * (bonus_rate / Decimal("100"))) if net_profit > Decimal('0') else Decimal('0.00')
 
     return render_template(
         "profit_report.html",
@@ -45,6 +53,7 @@ def report():
         total_expenses=total_expenses,
         net_profit=net_profit,
         bonus=bonus,
+        bonus_rate=bonus_rate,
         wastes=wastes
     )
 
@@ -62,7 +71,6 @@ def close_period():
     t_exp = sum([e.amount for e in expenses], Decimal('0.00'))
     n_prof = (t_rev - t_cost) - t_waste - t_exp
 
-    # KAPATMA ANINDA RAKAMLARI MÜHÜRLÜYORUZ (Arşivleme)
     active_period.total_revenue = t_rev
     active_period.total_cost = t_cost
     active_period.total_waste_cost = t_waste
@@ -80,21 +88,109 @@ def close_period():
 
 @report_bp.route("/periods")
 def periods():
-    # En yeni dönem en üstte görünecek şekilde tüm dönemleri listeler
     all_periods = Period.query.order_by(Period.id.desc()).all()
     return render_template("periods.html", periods=all_periods)
 
 @report_bp.route("/period/archive/<int:id>")
 def view_archive(id):
-    # Geçmiş bir dönemin mühürlenmiş raporunu açar
     period = Period.query.get_or_404(id)
+    bonus_rate = get_bonus_rate()
+    bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
     
-    # Arşiv raporunda prim hesabını o anki mühürlü kâr üzerinden tekrar yapar
-    bonus_rate = Decimal(str(current_app.config.get("BONUS_RATE", 0.05)))
-    bonus = (period.net_profit * bonus_rate) if period.net_profit > Decimal('0') else Decimal('0.00')
+    sold_items = db.session.query(
+        Product.name,
+        func.sum(SaleItem.quantity).label('total_quantity')
+    ).join(SaleItem, Product.id == SaleItem.product_id)\
+     .join(Sale, Sale.id == SaleItem.sale_id)\
+     .filter(Sale.period_id == period.id)\
+     .group_by(Product.id).order_by(func.sum(SaleItem.quantity).desc()).all()
     
     return render_template(
         "closed_report.html", 
         period=period, 
-        bonus=bonus
+        bonus=bonus,
+        bonus_rate=bonus_rate,
+        sold_items=sold_items
+    )
+
+# YENİ: Gerçek Excel (.xlsx) İndirme Rotası
+@report_bp.route("/period/export/<int:id>")
+def export_excel(id):
+    period = Period.query.get_or_404(id)
+    bonus_rate = get_bonus_rate()
+    bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
+
+    sold_items = db.session.query(
+        Product.name,
+        func.sum(SaleItem.quantity).label('total_quantity')
+    ).join(SaleItem, Product.id == SaleItem.product_id)\
+     .join(Sale, Sale.id == SaleItem.sale_id)\
+     .filter(Sale.period_id == period.id)\
+     .group_by(Product.id).order_by(func.sum(SaleItem.quantity).desc()).all()
+
+    # Excel dosyasını (Workbook) oluşturuyoruz
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dönem Raporu"
+
+    # Stil Ayarları (Kalın Yazı ve Ortalama)
+    bold_font = Font(bold=True)
+    center_aligned_text = Alignment(horizontal="center")
+
+    # ANA BAŞLIK
+    ws.merge_cells('A1:B1')
+    ws['A1'] = "REYONX İŞLETME RAPORU"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center_aligned_text
+
+    # BİLGİLER
+    ws.append(["Dönem Adı:", period.name])
+    ws.append(["Kapanış Tarihi:", period.end_date.strftime('%d.%m.%Y') if period.end_date else '-'])
+    ws.append([]) # Boş satır
+
+    # FİNANSAL ÖZET
+    ws.append(["FİNANSAL ÖZET", ""])
+    ws[f'A{ws.max_row}'].font = bold_font
+    
+    ws.append(["Toplam Satış (Ciro):", f"{period.total_revenue:.2f} ₺"])
+    ws.append(["Satılan Malın Maliyeti:", f"-{period.total_cost:.2f} ₺"])
+    ws.append(["Brüt Kâr:", f"{(period.total_revenue - period.total_cost):.2f} ₺"])
+    ws.append(["Fire ve Kayıp Giderleri:", f"-{period.total_waste_cost:.2f} ₺"])
+    ws.append(["İşletme Giderleri:", f"-{period.total_expenses:.2f} ₺"])
+    
+    ws.append(["GERÇEK NET KÂR:", f"{period.net_profit:.2f} ₺"])
+    ws[f'A{ws.max_row}'].font = bold_font
+    ws[f'B{ws.max_row}'].font = bold_font
+    
+    ws.append([f"Hesaplanan Personel Primi (%{bonus_rate}):", f"{bonus:.2f} ₺"])
+    ws.append([]) # Boş satır
+
+    # SATILAN ÜRÜNLER LİSTESİ
+    ws.append(["BU DÖNEM SATILAN ÜRÜNLER", ""])
+    ws[f'A{ws.max_row}'].font = bold_font
+    
+    ws.append(["Ürün Adı", "Satılan Adet"])
+    ws[f'A{ws.max_row}'].font = bold_font
+    ws[f'B{ws.max_row}'].font = bold_font
+
+    if not sold_items:
+        ws.append(["Satış bulunamadı.", "0"])
+    else:
+        for item in sold_items:
+            ws.append([item.name, item.total_quantity])
+
+    # Sütun Genişliklerini Estetik Olarak Ayarlama
+    ws.column_dimensions['A'].width = 35
+    ws.column_dimensions['B'].width = 25
+
+    # Dosyayı hafızaya alıp tarayıcıya yolluyoruz
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    return send_file(
+        out, 
+        download_name=f"ReyonX_Rapor_{period.name}.xlsx", 
+        as_attachment=True,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
