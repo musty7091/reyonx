@@ -2,9 +2,15 @@ from flask import Blueprint, render_template
 from database import db
 from models import Product, Invoice, Sale, Waste, Expense, Period, Payment, SaleItem
 from decimal import Decimal
+from flask import session, redirect, url_for
 
 # Bu dosyanın ana sayfa ve genel envanter sayfalarından sorumlu olduğunu belirtiyoruz
 dashboard_bp = Blueprint("dashboard", __name__)
+
+def login_required():
+    if "user_id" not in session:
+        return False
+    return True
 
 def get_active_period():
     period = Period.query.filter_by(is_active=True).first()
@@ -16,6 +22,10 @@ def get_active_period():
 
 @dashboard_bp.route("/")
 def index():
+
+    if "user_id" not in session:
+        return redirect(url_for("auth.login"))
+
     active_period = get_active_period()
     products = Product.query.all()
     
@@ -26,12 +36,13 @@ def index():
     
     total_products = len(products)
     
-    # Tüm hesaplamalarda kuruş güvenliği (Decimal) kullanıyoruz
     total_stock_count = sum([p.stock_quantity for p in products if p.stock_quantity], Decimal('0.00'))
     
-    # STOK DEĞERİ DÜZELTMESİ (Patronun Yakaladığı Detay):
-    # Artık tüm faturaların toplamına değil, depoda o an kalan malın maliyet değerine bakıyoruz!
-    total_investment = sum([p.stock_quantity * (p.avg_cost or Decimal('0.00')) for p in products if p.stock_quantity and p.stock_quantity > Decimal('0')], Decimal('0.00'))
+    total_investment = sum([
+        p.stock_quantity * (p.avg_cost or Decimal('0.00'))
+        for p in products
+        if p.stock_quantity and p.stock_quantity > Decimal('0')
+    ], Decimal('0.00'))
     
     total_revenue = sum([s.total_revenue for s in sales], Decimal('0.00'))
     total_cost = sum([s.total_cost for s in sales], Decimal('0.00'))
@@ -42,34 +53,42 @@ def index():
     
     real_net_profit = gross_profit - total_waste_cost - total_expense_amount
     
-    # Grafik Çizimi İçin Veri Hazırlığı
     chart_data = {
         "maliyet": float(total_cost),
         "giderler": float(total_waste_cost + total_expense_amount),
         "net_kar": float(real_net_profit if real_net_profit > 0 else 0)
     }
 
-    # --- YENİ EKLENEN ÖZELLİKLER ---
-
-    # 1. Tüm Carilere Olan Borç Toplamı (Geçmiş dönemler dahil tüm zamanlar)
     all_invoices = Invoice.query.all()
     all_payments = Payment.query.all()
-    total_alis_all = sum([inv.total_amount for inv in all_invoices if inv.invoice_type == "alis"], Decimal('0.00'))
-    total_iade_all = sum([inv.total_amount for inv in all_invoices if inv.invoice_type == "iade"], Decimal('0.00'))
+
+    total_alis_all = sum([
+        inv.total_amount for inv in all_invoices
+        if inv.invoice_type == "alis"
+    ], Decimal('0.00'))
+
+    total_iade_all = sum([
+        inv.total_amount for inv in all_invoices
+        if inv.invoice_type == "iade"
+    ], Decimal('0.00'))
+
     total_paid_all = sum([pay.amount for pay in all_payments], Decimal('0.00'))
+
     total_debt = total_alis_all - total_iade_all - total_paid_all
 
-    # 2. Kritik Stok Uyarıları (Stoku 10 ve altında olanlar)
-    critical_stocks = [p for p in products if p.stock_quantity is not None and p.stock_quantity <= Decimal('10.00')]
-    critical_stocks.sort(key=lambda x: x.stock_quantity) # En az olan en üstte çıksın
+    critical_stocks = [
+        p for p in products
+        if p.stock_quantity is not None and p.stock_quantity <= Decimal('10.00')
+    ]
+    critical_stocks.sort(key=lambda x: x.stock_quantity)
 
-    # 3. En Çok Satan 5 Ürün (Yıldızlar)
     top_products = db.session.query(
         Product.name,
         db.func.sum(SaleItem.quantity).label('total_sold')
-    ).join(SaleItem).group_by(Product.id).order_by(db.func.sum(SaleItem.quantity).desc()).limit(5).all()
+    ).join(SaleItem).group_by(Product.id).order_by(
+        db.func.sum(SaleItem.quantity).desc()
+    ).limit(5).all()
 
-    # 4. Son Hareketler Özeti (Tüm işlemlerden en yeni 5 tanesi)
     recent_activities = []
     
     for s in Sale.query.order_by(Sale.id.desc()).limit(5).all():
@@ -87,9 +106,8 @@ def index():
     for p in Payment.query.order_by(Payment.id.desc()).limit(5).all():
         recent_activities.append({"date": p.date, "desc": f"Ödeme: {p.supplier.name}", "amount": p.amount, "color": "success", "icon": "💳"})
 
-    # Hepsini aynı havuza atıp tarihe göre (en yeniden en eskiye) sıralıyoruz
     recent_activities.sort(key=lambda x: x["date"], reverse=True)
-    recent_activities = recent_activities[:6] # Sadece en son 6 işlemi al
+    recent_activities = recent_activities[:6]
 
     return render_template(
         "index.html",
@@ -108,5 +126,9 @@ def index():
 
 @dashboard_bp.route("/inventory")
 def inventory():
+
+    if "user_id" not in session:
+        return redirect(url_for("auth.login"))
+
     products = Product.query.filter_by(is_active=True).all()
     return render_template("inventory.html", products=products)

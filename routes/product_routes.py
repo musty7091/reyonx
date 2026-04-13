@@ -1,6 +1,7 @@
-from flask import Blueprint, request, redirect, render_template
+from flask import Blueprint, request, redirect, render_template 
 from database import db
 from models import Product, Supplier
+from utils.audit import log_action
 
 product_bp = Blueprint("product", __name__)
 
@@ -18,7 +19,6 @@ def products():
         elif Product.query.filter_by(barcode=barcode).first():
             error = "Bu barkod zaten var"
         else:
-            # HEM SENİN HEM BENİM VERİLERİMİ BİRLEŞTİRDİK
             p = Product(
                 barcode=barcode,
                 name=name,
@@ -27,12 +27,16 @@ def products():
                 unit=request.form.get("unit", "Adet"),
                 vat_rate=float(request.form.get("vat_rate", 20.0)),
                 purchase_price=float(request.form.get("purchase_price", 0.0)),
-                sale_price=float(request.form.get("sale_price", 0.0)),
+                price=float(request.form.get("sale_price", 0.0)),  # 🔥 DÜZELTİLDİ
                 stock_quantity=int(request.form.get("stock_quantity", 0)),
                 is_active=True
             )
             db.session.add(p)
             db.session.commit()
+
+            # 🔥 DÜZELTİLDİ
+            log_action("CREATE", "Product", p.id, "Yeni ürün eklendi")
+
             return redirect("/products")
 
     page = request.args.get("page", 1, type=int)
@@ -89,7 +93,7 @@ def edit_product(id):
         p.unit = request.form.get("unit")
         p.vat_rate = float(request.form.get("vat_rate", 20.0))
         p.purchase_price = float(request.form.get("purchase_price", 0.0))
-        p.sale_price = float(request.form.get("sale_price", 0.0))
+        p.price = float(request.form.get("sale_price", 0.0))  # 🔥 DÜZELTİLDİ
         p.stock_quantity = int(request.form.get("stock_quantity", 0))
         
         db.session.commit()

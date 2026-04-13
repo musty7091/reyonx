@@ -3,11 +3,12 @@ import os
 from dotenv import load_dotenv
 from database import db
 from flask_migrate import Migrate
+from datetime import datetime, timedelta
 
-# Gizli kasa dosyasını (.env) sisteme yüklüyoruz
+# .env yükle
 load_dotenv()
 
-# Rota (Sayfa) dosyalarımızı içeri aktarıyoruz
+# Blueprintler
 from routes.auth_routes import auth_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.supplier_routes import supplier_bp
@@ -19,23 +20,41 @@ from routes.expense_routes import expense_bp
 from routes.report_routes import report_bp
 from routes.settings_routes import settings_bp
 
-# Admin kullanıcı oluşturmak için User modelini çağırıyoruz
 from models import User
 
 app = Flask(__name__)
 
-# AYARLAR (Bilgileri .env dosyasından çekiyoruz)
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///reyonx.db"
+# ==========================================
+# GÜVENLİ CONFIG
+# ==========================================
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY tanımlı değil! .env dosyasını kontrol et.")
+
+app.config["SECRET_KEY"] = SECRET_KEY
+
+# DB artık env'den
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///reyonx.db"
+)
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Veritabanını uygulamaya bağlıyoruz
-db.init_app(app)
 
-# Esnek Veritabanı (Migration) sistemini başlatıyoruz
+# Session güvenliği
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
+
+# DB init
+db.init_app(app)
 migrate = Migrate(app, db)
 
-# Odalarımızı (Blueprints) ana binaya (uygulamaya) bağlıyoruz
+# Blueprint register
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(supplier_bp)
@@ -47,31 +66,60 @@ app.register_blueprint(expense_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(settings_bp)
 
+
+# =========================
+# SESSION TIMEOUT
+# =========================
+from datetime import datetime, timedelta
+from flask import session, redirect, url_for
+
+@app.before_request
+def session_timeout():
+    if "user_id" in session:
+        login_time = session.get("login_time")
+
+        if login_time:
+            try:
+                login_time = datetime.fromisoformat(login_time)
+            except:
+                session.clear()
+                return redirect(url_for("auth.login"))
+
+            # 30 dakika dolmuşsa logout
+            if datetime.utcnow() - login_time > timedelta(minutes=30):
+                session.clear()
+                return redirect(url_for("auth.login"))
+
+            # 🔥 AKTİF KULLANICI → SÜREYİ YENİLE
+            session["login_time"] = datetime.utcnow().isoformat()
+
 # ==========================================
-# UYGULAMA BAŞLATMA VE VERİTABANI KURULUMU
+# İLK KURULUM (ADMIN)
 # ==========================================
 if __name__ == "__main__":
     with app.app_context():
-        # Veritabanı tablolarını oluşturur
-        db.create_all()
-        
-        # Sistemde 'admin' isimli bir kullanıcı var mı diye bakıyoruz
+
+        # ❌ create_all kaldırıldı (MIGRATION kullanacağız)
+
         admin_user = User.query.filter_by(username="admin").first()
-        
-        # Eğer admin hesabı henüz hiç oluşturulmamışsa:
+
         if not admin_user:
+            default_password = os.getenv("ADMIN_DEFAULT_PASS")
+
+            if not default_password:
+                raise RuntimeError(
+                    "ADMIN_DEFAULT_PASS .env içinde tanımlı olmalı!"
+                )
+
             admin_user = User(username="admin")
-            
-            # Şifreyi kodun içinden değil, .env dosyasındaki kasadan alıyoruz
-            # Eğer kasada şifre bulamazsa varsayılan olarak "1234" yapar
-            default_password = os.getenv("ADMIN_DEFAULT_PASS", "1234")
-            
-            # models.py içindeki hashleme fonksiyonunu kullanarak şifreyi gizliyoruz
-            admin_user.set_password(default_password) 
-            
+            admin_user.set_password(default_password)
+
             db.session.add(admin_user)
             db.session.commit()
-            print("Sistem İlk Kurulum: Güvenli yönetici hesabı oluşturuldu.")
 
-    # Geliştirme modunda uygulamayı çalıştır
-    app.run(debug=True)
+            print("Admin kullanıcı oluşturuldu.")
+
+    # DEBUG artık ENV'e bağlı
+    DEBUG_MODE = os.getenv("DEBUG", "False") == "True"
+
+    app.run(debug=DEBUG_MODE)

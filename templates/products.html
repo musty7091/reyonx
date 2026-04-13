@@ -56,7 +56,7 @@
                                 </div>
                             </td>
                             <td class="text-warning fw-bold">{{ "%.2f"|format(p.purchase_price) }} TL</td>
-                            <td class="text-success fw-bold fs-5">{{ "%.2f"|format(p.sale_price) }} TL</td>
+                            <td class="text-success fw-bold fs-5">{{ "%.2f"|format(p.price) }} TL</td>
                             <td class="text-center">
                                 {% if p.stock_quantity <= 5 %}
                                     <span class="badge bg-danger fs-6">{{ p.stock_quantity }}</span><br>

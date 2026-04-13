@@ -1,8 +1,8 @@
-"""ilk_kurulum
+"""initial
 
-Revision ID: d68459728a41
+Revision ID: 64865e331916
 Revises: 
-Create Date: 2026-04-11 16:23:07.817465
+Create Date: 2026-04-13 17:14:54.679299
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd68459728a41'
+revision = '64865e331916'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -29,6 +29,7 @@ def upgrade():
     sa.Column('total_waste_cost', sa.Numeric(precision=15, scale=2), nullable=True),
     sa.Column('total_expenses', sa.Numeric(precision=15, scale=2), nullable=True),
     sa.Column('net_profit', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('bonus_rate', sa.Numeric(precision=5, scale=2), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('supplier',
@@ -38,10 +39,17 @@ def upgrade():
     sa.Column('phone', sa.String(length=50), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('system_setting',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('setting_key', sa.String(length=50), nullable=False),
+    sa.Column('setting_value', sa.String(length=100), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('setting_key')
+    )
     op.create_table('user',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('username', sa.String(length=100), nullable=True),
-    sa.Column('password', sa.String(length=200), nullable=True),
+    sa.Column('username', sa.String(length=50), nullable=False),
+    sa.Column('password_hash', sa.String(length=256), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('username')
     )
@@ -155,6 +163,7 @@ def downgrade():
     op.drop_table('invoice')
     op.drop_table('expense')
     op.drop_table('user')
+    op.drop_table('system_setting')
     op.drop_table('supplier')
     op.drop_table('period')
     # ### end Alembic commands ###
