@@ -24,43 +24,44 @@ def get_bonus_rate():
     return Decimal(rate_setting.setting_value) if rate_setting else Decimal("5")
 
 def calculate_debt_at_time(end_time):
-    query_inv = Invoice.query
-    query_pay = Payment.query
+    # OPTİMİZASYON: Bütün faturaları çekip Python'da toplamak yerine, 
+    # doğrudan veritabanından (SQL) toplam değeri (SUM) istiyoruz.
+    query_inv_alis = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "alis")
+    query_inv_iade = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "iade")
+    query_pay = db.session.query(func.sum(Payment.amount))
     
     if end_time:
-        query_inv = query_inv.filter(Invoice.date <= end_time)
+        query_inv_alis = query_inv_alis.filter(Invoice.date <= end_time)
+        query_inv_iade = query_inv_iade.filter(Invoice.date <= end_time)
         query_pay = query_pay.filter(Payment.date <= end_time)
         
-    invoices = query_inv.all()
-    payments = query_pay.all()
-    
-    t_alis = sum([inv.total_amount for inv in invoices if inv.invoice_type == "alis"], Decimal('0.00'))
-    t_iade = sum([inv.total_amount for inv in invoices if inv.invoice_type == "iade"], Decimal('0.00'))
-    t_paid = sum([pay.amount for pay in payments], Decimal('0.00'))
+    t_alis = query_inv_alis.scalar() or Decimal('0.00')
+    t_iade = query_inv_iade.scalar() or Decimal('0.00')
+    t_paid = query_pay.scalar() or Decimal('0.00')
     
     return t_alis - t_iade - t_paid
 
 @report_bp.route("/report")
 def report():
     active_period = get_active_period()
-    sales = Sale.query.filter_by(period_id=active_period.id).all()
-    wastes = Waste.query.filter_by(period_id=active_period.id).all()
-    expenses = Expense.query.filter_by(period_id=active_period.id).all()
+    
+    # OPTİMİZASYON: On binlerce veriyi hafızaya alıp Python'da toplamak yerine, 
+    # doğrudan veritabanından yekünleri (SUM) çekiyoruz.
+    total_revenue = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
+    total_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
+    total_waste_cost = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id).scalar() or Decimal('0.00')
+    total_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id).scalar() or Decimal('0.00')
 
-    total_revenue = sum([s.total_revenue for s in sales], Decimal('0.00'))
-    total_cost = sum([s.total_cost for s in sales], Decimal('0.00'))
     gross_profit = total_revenue - total_cost
-
-    total_waste_cost = sum([w.quantity * w.cost for w in wastes], Decimal('0.00'))
-    total_expenses = sum([e.amount for e in expenses], Decimal('0.00'))
-
     net_profit = gross_profit - total_waste_cost - total_expenses
     
-    # Canlı raporda her zaman Ayarlardaki güncel oran kullanılır
     bonus_rate = get_bonus_rate()
     bonus = (net_profit * (bonus_rate / Decimal("100"))) if net_profit > Decimal('0') else Decimal('0.00')
     
     current_debt = calculate_debt_at_time(None)
+
+    # Ekranda listelemek için sadece o dönemin fire kayıtlarını çekiyoruz
+    wastes = Waste.query.filter_by(period_id=active_period.id).all()
 
     return render_template(
         "profit_report.html",
@@ -81,14 +82,12 @@ def report():
 def close_period():
     active_period = get_active_period()
     
-    sales = Sale.query.filter_by(period_id=active_period.id).all()
-    wastes = Waste.query.filter_by(period_id=active_period.id).all()
-    expenses = Expense.query.filter_by(period_id=active_period.id).all()
-
-    t_rev = sum([s.total_revenue for s in sales], Decimal('0.00'))
-    t_cost = sum([s.total_cost for s in sales], Decimal('0.00'))
-    t_waste = sum([w.quantity * w.cost for w in wastes], Decimal('0.00'))
-    t_exp = sum([e.amount for e in expenses], Decimal('0.00'))
+    # OPTİMİZASYON: Dönem kapatırken de hızlı SUM (Toplama) yapıyoruz
+    t_rev = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
+    t_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
+    t_waste = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id).scalar() or Decimal('0.00')
+    t_exp = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id).scalar() or Decimal('0.00')
+    
     n_prof = (t_rev - t_cost) - t_waste - t_exp
 
     active_period.total_revenue = t_rev
@@ -97,7 +96,7 @@ def close_period():
     active_period.total_expenses = t_exp
     active_period.net_profit = n_prof
     
-    # YENİ: Kapanış anındaki prim oranını döneme kalıcı olarak mühürlüyoruz
+    # Kapanış anındaki prim oranını döneme kalıcı olarak mühürlüyoruz
     active_period.bonus_rate = get_bonus_rate() 
     
     active_period.end_date = datetime.utcnow()
@@ -112,14 +111,19 @@ def close_period():
 
 @report_bp.route("/periods")
 def periods():
-    all_periods = Period.query.order_by(Period.id.desc()).all()
-    return render_template("periods.html", periods=all_periods)
+    # URL'den sayfa numarasını alıyoruz. Bulamazsa 1. sayfayı açar.
+    page = request.args.get('page', 1, type=int)
+    
+    # Tüm verileri çekmek yerine sayfalanmış (paginated) halde 10'ar 10'ar getiriyoruz.
+    periods_pagination = Period.query.order_by(Period.id.desc()).paginate(page=page, per_page=10, error_out=False)
+    
+    return render_template("periods.html", pagination=periods_pagination)
 
 @report_bp.route("/period/archive/<int:id>")
 def view_archive(id):
     period = Period.query.get_or_404(id)
     
-    # YENİ: Eğer dönemin mühürlü bir oranı varsa onu kullan, yoksa mecburen günceli al
+    # Eğer dönemin mühürlü bir oranı varsa onu kullan, yoksa günceli al
     bonus_rate = period.bonus_rate if period.bonus_rate is not None else get_bonus_rate()
     bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
     
@@ -146,7 +150,6 @@ def view_archive(id):
 def export_excel(id):
     period = Period.query.get_or_404(id)
     
-    # YENİ: Excel'de de mühürlü oranı kullanıyoruz
     bonus_rate = period.bonus_rate if period.bonus_rate is not None else get_bonus_rate()
     bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
     

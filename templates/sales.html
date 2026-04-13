@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Satış Raporu Girişi (Ciro & Kâr)</h2>
+        <h2>Satış Raporu Girişi</h2>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#yeniSatisModal">
             + Satışları Yükle
         </button>
@@ -11,70 +11,98 @@
     {% if error %}
     <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
     {% endif %}
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} fw-bold text-center py-2 shadow-sm">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tarih / Saat</th>
-                        <th>Satış Cirosu (KDV Dahil)</th>
-                        <th>Ürün Maliyeti (KDV Dahil)</th>
-                        <th>Gerçek Net Kâr</th>
-                        <th class="text-end">İşlemler</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in sales.items %}
-                    <tr>
-                        <td><strong>{{ s.date.strftime('%d.%m.%Y - %H:%M') }}</strong></td>
-                        <td><span class="text-primary fw-bold">{{ "%.2f"|format(s.total_revenue) }} TL</span></td>
-                        <td>{{ "%.2f"|format(s.total_cost) }} TL</td>
-                        <td>
-                            {% if s.total_profit > 0 %}
-                                <strong class="text-success">+{{ "%.2f"|format(s.total_profit) }} TL</strong>
-                            {% else %}
-                                <strong class="text-danger">{{ "%.2f"|format(s.total_profit) }} TL</strong>
-                            {% endif %}
-                        </td>
-                        <td class="text-end">
-                            <a href="/sale/delete/{{ s.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu satışı silersen stoklar depoya geri döner. Emin misin?')">Sil</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">Bu dönemde henüz satış kaydı bulunmuyor.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            {% if sales.pages > 1 %}
-            <nav aria-label="Sayfa Gezinme" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if sales.has_prev %}
-                    <li class="page-item"><a class="page-link" href="/sales?page={{ sales.prev_num }}">Önceki</a></li>
-                    {% endif %}
-                    
-                    {% for page_num in sales.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                        {% if page_num %}
-                            {% if page_num == sales.page %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                            {% else %}
-                            <li class="page-item"><a class="page-link" href="/sales?page={{ page_num }}">{{ page_num }}</a></li>
-                            {% endif %}
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="ps-4 py-3">Tarih / Saat</th>
+                            <th class="py-3">Satış Cirosu (KDV Dahil)</th>
+                            <th class="py-3">Ürün Maliyeti (KDV Dahil)</th>
+                            <th class="py-3">Gerçek Net Kâr</th>
+                            <th class="text-end pe-4 py-3">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in pagination.items %}
+                        <tr>
+                            <td class="ps-4"><strong>{{ s.date.strftime('%d.%m.%Y - %H:%M') }}</strong></td>
+                            <td><span class="text-primary fw-bold">{{ "%.2f"|format(s.total_revenue) }} TL</span></td>
+                            <td>{{ "%.2f"|format(s.total_cost) }} TL</td>
+                            <td>
+                                {% if s.total_profit > 0 %}
+                                    <strong class="text-success">+{{ "%.2f"|format(s.total_profit) }} TL</strong>
+                                {% else %}
+                                    <strong class="text-danger">{{ "%.2f"|format(s.total_profit) }} TL</strong>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="/sale/delete/{{ s.id }}" class="btn btn-outline-danger btn-sm fw-bold" onclick="return confirm('Bu satışı silersen stoklar depoya geri döner. Emin misin?')">Sil</a>
+                            </td>
+                        </tr>
                         {% else %}
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
-                        {% endif %}
-                    {% endfor %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">Bu dönemde henüz satış kaydı bulunmuyor.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if pagination.pages > 1 %}
+            <div class="d-flex justify-content-center mt-4 mb-3">
+                <nav aria-label="Sayfa Gezinme">
+                    <ul class="pagination pagination-sm shadow-sm">
+                        
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/sales?page={{ pagination.prev_num }}">
+                                &laquo; Önceki
+                            </a>
+                        </li>
 
-                    {% if sales.has_next %}
-                    <li class="page-item"><a class="page-link" href="/sales?page={{ sales.next_num }}">Sonraki</a></li>
-                    {% endif %}
-                </ul>
-            </nav>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if pagination.page == page_num %}
+                                    <li class="page-item active">
+                                        <span class="page-link bg-dark border-dark text-white fw-bold">{{ page_num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link text-dark" href="/sales?page={{ page_num }}">{{ page_num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link text-muted">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/sales?page={{ pagination.next_num }}">
+                                Sonraki &raquo;
+                            </a>
+                        </li>
+                        
+                    </ul>
+                </nav>
+            </div>
             {% endif %}
             
+            <div class="text-center text-muted small mt-2 mb-3">
+                Toplam <strong>{{ pagination.total }}</strong> satış kaydı. Sayfa {{ pagination.page }} / {{ pagination.pages }}
+            </div>
+
         </div>
     </div>
 </div>

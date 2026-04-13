@@ -106,11 +106,20 @@ def invoices():
     
     # SAYFALAMA (PAGINATION) İŞLEMİ
     page = request.args.get('page', 1, type=int)
-    paginated_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.date.desc()).paginate(page=page, per_page=10)
+    paginated_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.date.desc()).paginate(page=page, per_page=10, error_out=False)
     
     suppliers = Supplier.query.all()
     products = Product.query.all()
-    return render_template("invoices.html", invoices=paginated_invoices, suppliers=suppliers, products=products, active_period=active_period, error=error)
+    
+    return render_template(
+        "invoices.html", 
+        invoices=paginated_invoices.items, 
+        pagination=paginated_invoices, 
+        suppliers=suppliers, 
+        products=products, 
+        active_period=active_period, 
+        error=error
+    )
 
 @invoice_bp.route("/invoice/<int:id>", methods=["GET", "POST"])
 def invoice_detail(id):

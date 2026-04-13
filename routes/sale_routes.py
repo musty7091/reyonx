@@ -79,10 +79,23 @@ def sales():
             
     # SAYFALAMA (PAGINATION)
     page = request.args.get('page', 1, type=int)
-    paginated_sales = Sale.query.filter_by(period_id=active_period.id).order_by(Sale.id.desc()).paginate(page=page, per_page=10)
+    
+    # error_out=False ile hata vermesini engelliyoruz
+    paginated_sales = Sale.query.filter_by(period_id=active_period.id) \
+                                .order_by(Sale.id.desc()) \
+                                .paginate(page=page, per_page=10, error_out=False)
     
     products = Product.query.filter_by(is_active=True).all()
-    return render_template("sales.html", sales=paginated_sales, products=products, active_period=active_period, error=error)
+    
+    # Tabloda dönmek için sales'i, alt butonlar için pagination'ı gönderiyoruz
+    return render_template(
+        "sales.html", 
+        sales=paginated_sales.items,  # Sadece o sayfanın 10 adetlik verisi
+        pagination=paginated_sales,   # Sayfa numaraları, ileri/geri bilgileri
+        products=products, 
+        active_period=active_period, 
+        error=error
+    )
 
 @sale_bp.route("/sale/delete/<int:id>")
 def delete_sale(id):

@@ -37,11 +37,17 @@ def expenses():
             error = "Gider kaydedilirken bir sorun oluştu. Lütfen rakam girdiğinizden emin olun."
             print(f"Sistem Hatası: {e}")
     
-    # SAYFALAMA
+    # SAYFALAMA KORUMASI EKLENDİ
     page = request.args.get('page', 1, type=int)
-    paginated_expenses = Expense.query.filter_by(period_id=active_period.id).order_by(Expense.id.desc()).paginate(page=page, per_page=10)
+    paginated_expenses = Expense.query.filter_by(period_id=active_period.id).order_by(Expense.id.desc()).paginate(page=page, per_page=10, error_out=False)
     
-    return render_template("expenses.html", expenses=paginated_expenses, active_period=active_period, error=error)
+    return render_template(
+        "expenses.html", 
+        expenses=paginated_expenses.items, 
+        pagination=paginated_expenses, 
+        active_period=active_period, 
+        error=error
+    )
 
 @expense_bp.route("/expense/delete/<int:id>")
 def delete_expense(id):

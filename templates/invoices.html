@@ -1,172 +1,197 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4 px-4">
+    
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Faturalar (Alış ve İade)</h2>
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#yeniFaturaModal">
-            + Yeni Fatura İşle
-        </button>
+        <div>
+            <h2 class="mb-0">🧾 Fatura ve İrsaliye Yönetimi</h2>
+            <p class="text-muted small">Toptancılardan gelen alış faturaları ve iadeleri buradan işleyebilirsiniz.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#yeniFaturaModal">
+                + Yeni Fatura İşle
+            </button>
+        </div>
     </div>
 
     {% if error %}
-    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
+    <div class="alert alert-danger fw-bold shadow-sm border-start border-4 border-danger">
+        ⚠️ {{ error }}
+    </div>
     {% endif %}
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Tür</th>
-                        <th>Fatura No</th>
-                        <th>Tedarikçi</th>
-                        <th>Net Tutar (KDV Hariç)</th>
-                        <th>KDV</th>
-                        <th>Genel Toplam (Cari Etki)</th>
-                        <th class="text-end">İşlemler</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for inv in invoices.items %}
-                    <tr>
-                        <td>{{ inv.date.strftime('%d.%m.%Y') }}</td>
-                        <td>
-                            {% if inv.invoice_type == "alis" %}
-                                <span class="badge bg-primary">Alış Faturası</span>
-                            {% else %}
-                                <span class="badge bg-warning text-dark">İade Faturası</span>
-                            {% endif %}
-                        </td>
-                        <td><strong>{{ inv.invoice_no }}</strong></td>
-                        <td>{{ inv.supplier.name }}</td>
-                        <td>{{ "%.2f"|format(inv.total_net) }} TL</td>
-                        <td>{{ "%.2f"|format(inv.total_vat) }} TL</td>
-                        <td>
-                            {% if inv.invoice_type == "alis" %}
-                                <strong class="text-danger">+{{ "%.2f"|format(inv.total_amount) }} TL (Borç)</strong>
-                            {% else %}
-                                <strong class="text-success">-{{ "%.2f"|format(inv.total_amount) }} TL (Düşüldü)</strong>
-                            {% endif %}
-                        </td>
-                        <td class="text-end">
-                            <a href="/invoice/{{ inv.id }}" class="btn btn-primary btn-sm me-1">Detayları Gör</a>
-                            <a href="/invoice/delete/{{ inv.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bu faturayı silersen içindeki tüm ürünlerin stokları eski haline dönecektir. Emin misin?')">Sil</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="8" class="text-center text-muted py-4">Bu dönemde henüz kayıtlı bir fatura bulunmuyor.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            {% if invoices.pages > 1 %}
-            <nav aria-label="Sayfa Gezinme" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    
-                    {% if invoices.has_prev %}
-                    <li class="page-item">
-                        <a class="page-link" href="/invoices?page={{ invoices.prev_num }}">Önceki</a>
-                    </li>
-                    {% endif %}
-
-                    {% for page_num in invoices.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                        {% if page_num %}
-                            {% if page_num == invoices.page %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                            {% else %}
-                            <li class="page-item"><a class="page-link" href="/invoices?page={{ page_num }}">{{ page_num }}</a></li>
-                            {% endif %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-dark text-white fw-bold py-3">
+            📋 {{ active_period.name }} - İşlenen Faturalar
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3">Fatura No / Tarih</th>
+                            <th class="py-3">Tedarikçi Firma</th>
+                            <th class="py-3 text-center">İşlem Tipi</th>
+                            <th class="py-3 text-end">Ara Toplam</th>
+                            <th class="py-3 text-end">KDV Toplamı</th>
+                            <th class="py-3 text-end">Genel Toplam</th>
+                            <th class="text-end pe-4 py-3">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inv in invoices %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold text-primary">#{{ inv.invoice_no }}</div>
+                                <div class="text-muted small">{{ inv.date.strftime('%d.%m.%Y') if inv.date else '-' }}</div>
+                            </td>
+                            <td class="fw-bold text-dark">
+                                {{ inv.supplier.name if inv.supplier else 'Silinmiş Tedarikçi' }}
+                            </td>
+                            <td class="text-center">
+                                {% if inv.invoice_type == 'alis' %}
+                                    <span class="badge bg-success px-3 py-2"><i class="bi bi-box-arrow-in-right"></i> Alış</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark px-3 py-2"><i class="bi bi-box-arrow-up-left"></i> İade</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-muted fw-bold">{{ "%.2f"|format(inv.total_net) }} ₺</td>
+                            <td class="text-end text-muted fw-bold">{{ "%.2f"|format(inv.total_vat) }} ₺</td>
+                            <td class="text-end fs-6 fw-bold text-dark">{{ "%.2f"|format(inv.total_amount) }} ₺</td>
+                            <td class="text-end pe-4">
+                                <a href="/invoice/{{ inv.id }}" class="btn btn-sm btn-outline-primary fw-bold shadow-sm">Detay Gör</a>
+                                <a href="/invoice/delete/{{ inv.id }}" class="btn btn-sm btn-outline-danger fw-bold shadow-sm ms-1" onclick="return confirm('Bu faturayı silerseniz stoklar ve maliyetler geriye alınacaktır. Emin misiniz?')">Sil</a>
+                            </td>
+                        </tr>
                         {% else %}
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
-                        {% endif %}
-                    {% endfor %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <p class="mb-0 fs-5">Bu dönemde henüz işlenmiş bir fatura bulunmuyor.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if pagination.pages > 1 %}
+            <div class="d-flex justify-content-center mt-4 mb-3">
+                <nav aria-label="Sayfa Gezinme">
+                    <ul class="pagination pagination-sm shadow-sm">
+                        
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/invoices?page={{ pagination.prev_num }}">&laquo; Önceki</a>
+                        </li>
 
-                    {% if invoices.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="/invoices?page={{ invoices.next_num }}">Sonraki</a>
-                    </li>
-                    {% endif %}
-                    
-                </ul>
-            </nav>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if pagination.page == page_num %}
+                                    <li class="page-item active">
+                                        <span class="page-link bg-primary border-primary text-white fw-bold">{{ page_num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link text-dark" href="/invoices?page={{ page_num }}">{{ page_num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link text-muted">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/invoices?page={{ pagination.next_num }}">Sonraki &raquo;</a>
+                        </li>
+                        
+                    </ul>
+                </nav>
+            </div>
             {% endif %}
             
+            <div class="text-center text-muted small mt-2 mb-4">
+                Toplam <strong>{{ pagination.total }}</strong> fatura kaydı. Sayfa {{ pagination.page }} / {{ pagination.pages }}
+            </div>
+
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="yeniFaturaModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title">Yeni Fatura Girişi</h5>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">+ Yeni Fatura İşle</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            
             <form method="POST" action="/invoices">
-                <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-primary">Fatura Tipi</label>
-                            <select name="invoice_type" class="form-control" required>
-                                <option value="alis">Alış Faturası (Stok Artar, Borç Yazar)</option>
-                                <option value="iade">İade Faturası (Stok Düşer, Borçtan Düşer)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Tedarikçi</label>
-                            <select name="supplier_id" class="form-control" required>
-                                <option value="">Firma Seçiniz...</option>
-                                {% for s in suppliers %}
-                                <option value="{{ s.id }}">{{ s.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Fatura Numarası</label>
-                            <input type="text" name="invoice_no" class="form-control" placeholder="Örn: GİB-20261234" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Fatura Tarihi</label>
-                            <input type="date" name="invoice_date" class="form-control" required>
+                <div class="modal-body bg-light">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-uppercase text-muted">Fatura Tipi</label>
+                                    <select name="invoice_type" class="form-select border-primary fw-bold text-primary">
+                                        <option value="alis" selected>Alış Faturası (Stok Artar)</option>
+                                        <option value="iade">İade Faturası (Stok Düşer)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-uppercase text-muted">Tedarikçi</label>
+                                    <select name="supplier_id" class="form-select" required>
+                                        <option value="" disabled selected>Firma Seçin...</option>
+                                        {% for s in suppliers %}
+                                        <option value="{{ s.id }}">{{ s.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-uppercase text-muted">Fatura Numarası</label>
+                                    <input type="text" name="invoice_no" class="form-control" placeholder="A-123456" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-uppercase text-muted">Tarih</label>
+                                    <input type="date" name="invoice_date" class="form-control" required>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <hr>
-                    
-                    <h6 class="fw-bold mb-3">Faturadaki Ürünler (Tüm Fiyatlar KDV Hariç)</h6>
-                    <div id="urun-listesi">
-                        <div class="row g-2 mb-2 fatura-satiri">
+                    <h6 class="fw-bold mb-3 text-dark border-bottom pb-2">Fatura Kalemleri (KDV Hariç Fiyat Giriniz)</h6>
+                    <div id="fatura-satirlari">
+                        <div class="row g-2 mb-2 fatura-satiri align-items-end">
                             <div class="col-md-5">
-                                <select name="product_id[]" class="form-control" required>
-                                    <option value="">Ürün Seç</option>
+                                <label class="form-label fw-bold small text-muted">Ürün Seçin</label>
+                                <select name="product_id[]" class="form-select" required>
+                                    <option value="" disabled selected>Listeden ürün seçin...</option>
                                     {% for p in products %}
                                     <option value="{{ p.id }}">{{ p.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Miktar (Adet/Kg)" required>
+                                <label class="form-label fw-bold small text-muted">Miktar</label>
+                                <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Adet/KG" required>
                             </div>
                             <div class="col-md-3">
-                                <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Fiyat (KDV Hariç)" required>
+                                <label class="form-label fw-bold small text-muted">Birim Fiyat (KDV Hariç)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" name="unit_price[]" class="form-control" placeholder="0.00" required>
+                                    <span class="input-group-text">₺</span>
+                                </div>
                             </div>
-                            <div class="col-md-1">
+                            <div class="col-md-1 text-center">
                                 </div>
                         </div>
                     </div>
                     
-                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="yeniSatirEkle()">
-                        + Başka Bir Ürün Daha Ekle
+                    <button type="button" class="btn btn-outline-primary btn-sm mt-3 fw-bold" onclick="yeniSatirEkle()">
+                        + Yeni Ürün Satırı Ekle
                     </button>
                     
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="submit" class="btn btn-success">Faturayı Kaydet</button>
+                    <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">Faturayı İşle ve Kaydet</button>
                 </div>
             </form>
         </div>
@@ -175,27 +200,29 @@
 
 <script>
 function yeniSatirEkle() {
-    const liste = document.getElementById('urun-listesi');
+    const liste = document.getElementById('fatura-satirlari');
     const yeniSatir = document.createElement('div');
-    yeniSatir.className = 'row g-2 mb-2 fatura-satiri';
-    
+    yeniSatir.className = 'row g-2 mb-2 fatura-satiri align-items-end';
     yeniSatir.innerHTML = `
         <div class="col-md-5">
-            <select name="product_id[]" class="form-control" required>
-                <option value="">Ürün Seç</option>
+            <select name="product_id[]" class="form-select" required>
+                <option value="" disabled selected>Listeden ürün seçin...</option>
                 {% for p in products %}
                 <option value="{{ p.id }}">{{ p.name }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-3">
-            <input type="number" name="quantity[]" step="0.01" class="form-control" placeholder="Miktar (Adet/Kg)" required>
+            <input type="number" step="0.01" name="quantity[]" class="form-control" placeholder="Adet/KG" required>
         </div>
         <div class="col-md-3">
-            <input type="number" name="unit_price[]" step="0.01" class="form-control" placeholder="Birim Fiyat (KDV Hariç)" required>
+            <div class="input-group">
+                <input type="number" step="0.01" name="unit_price[]" class="form-control" placeholder="0.00" required>
+                <span class="input-group-text">₺</span>
+            </div>
         </div>
         <div class="col-md-1">
-            <button type="button" class="btn btn-danger w-100" onclick="this.parentElement.parentElement.remove()">X</button>
+            <button type="button" class="btn btn-danger w-100 fw-bold" title="Satırı Sil" onclick="this.parentElement.parentElement.remove()">X</button>
         </div>
     `;
     liste.appendChild(yeniSatir);

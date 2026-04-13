@@ -2,27 +2,33 @@ from flask import Blueprint, request, redirect, render_template
 from database import db
 from models import Product, Supplier
 
-# Bu dosyanın "ürünler" (product) sayfalarından sorumlu olduğunu sisteme söylüyoruz
 product_bp = Blueprint("product", __name__)
 
 @product_bp.route("/products", methods=["GET", "POST"])
 def products():
     suppliers = Supplier.query.all()
     error = None
+    
     if request.method == "POST":
         barcode = request.form.get("barcode")
         name = request.form.get("name")
+        
         if not barcode or not name:
             error = "Barkod ve ürün adı zorunlu"
         elif Product.query.filter_by(barcode=barcode).first():
             error = "Bu barkod zaten var"
         else:
+            # HEM SENİN HEM BENİM VERİLERİMİ BİRLEŞTİRDİK
             p = Product(
                 barcode=barcode,
                 name=name,
-                supplier_id=request.form.get("supplier_id"),
-                unit=request.form.get("unit"),
+                supplier_id=request.form.get("supplier_id") or None,
+                category=request.form.get("category", "Genel"),
+                unit=request.form.get("unit", "Adet"),
                 vat_rate=float(request.form.get("vat_rate", 20.0)),
+                purchase_price=float(request.form.get("purchase_price", 0.0)),
+                sale_price=float(request.form.get("sale_price", 0.0)),
+                stock_quantity=int(request.form.get("stock_quantity", 0)),
                 is_active=True
             )
             db.session.add(p)
@@ -31,12 +37,14 @@ def products():
 
     page = request.args.get("page", 1, type=int)
     sort = request.args.get("sort", "name")
+    
     query = Product.query
     if sort == "name":
         query = query.order_by(Product.name.asc())
     elif sort == "new":
         query = query.order_by(Product.id.desc())
-    data = query.paginate(page=page, per_page=10)
+        
+    data = query.paginate(page=page, per_page=10, error_out=False)
 
     return render_template(
         "products.html",
@@ -67,16 +75,24 @@ def toggle_product(id):
 def edit_product(id):
     p = Product.query.get(id)
     suppliers = Supplier.query.all()
+    
     if request.method == "POST":
         barcode = request.form.get("barcode")
         existing = Product.query.filter(Product.barcode == barcode, Product.id != id).first()
         if existing:
             return "Bu barkod başka üründe var"
+            
         p.barcode = barcode
         p.name = request.form.get("name")
-        p.supplier_id = request.form.get("supplier_id")
+        p.supplier_id = request.form.get("supplier_id") or None
+        p.category = request.form.get("category", "Genel")
         p.unit = request.form.get("unit")
         p.vat_rate = float(request.form.get("vat_rate", 20.0))
+        p.purchase_price = float(request.form.get("purchase_price", 0.0))
+        p.sale_price = float(request.form.get("sale_price", 0.0))
+        p.stock_quantity = int(request.form.get("stock_quantity", 0))
+        
         db.session.commit()
         return redirect("/products")
+        
     return render_template("product_edit.html", product=p, suppliers=suppliers)

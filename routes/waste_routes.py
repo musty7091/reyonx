@@ -28,6 +28,7 @@ def wastes():
                 product = Product.query.get(product_id)
                 qty_dec = Decimal(quantity)
                 
+                # Senin kurduğun o akıllı maliyet bulma mantığı:
                 last_invoice_item = InvoiceItem.query.join(Invoice).filter(
                     InvoiceItem.product_id == product_id,
                     Invoice.invoice_type == "alis"
@@ -55,17 +56,24 @@ def wastes():
                 db.session.commit()
             return redirect("/wastes")
         except Exception as e:
-            # Hata yakalandı, sistemi korumaya al ve geri sar!
             db.session.rollback()
             error = "Fire kaydedilirken bir sorun oluştu. Lütfen bilgileri doğru girdiğinizden emin olun."
             print(f"Sistem Hatası: {e}")
 
-    # SAYFALAMA
+    # SAYFALAMA VE GÜVENLİK KORUMASI
     page = request.args.get('page', 1, type=int)
-    paginated_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).paginate(page=page, per_page=10)
+    paginated_wastes = Waste.query.filter_by(period_id=active_period.id).order_by(Waste.id.desc()).paginate(page=page, per_page=10, error_out=False)
     
     products = Product.query.filter_by(is_active=True).all()
-    return render_template("wastes.html", wastes=paginated_wastes, products=products, active_period=active_period, error=error)
+    
+    return render_template(
+        "wastes.html", 
+        wastes=paginated_wastes.items, 
+        pagination=paginated_wastes, 
+        products=products, 
+        active_period=active_period, 
+        error=error
+    )
 
 @waste_bp.route("/waste/delete/<int:id>")
 def delete_waste(id):

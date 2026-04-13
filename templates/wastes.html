@@ -1,97 +1,149 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Fire ve Kayıp Girişi</h2>
-
-    {% if error %}
-    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
-    {% endif %}
-
-    <div class="card p-4 mb-4 shadow-sm border-warning border-start border-4">
-        <h5 class="card-title mb-3">Çöpe Giden / Bozulan Ürün Kaydet</h5>
-        <form method="POST" class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label text-muted small">Ürün Seçin</label>
-                <select name="product_id" class="form-select" required>
-                    <option value="" disabled selected>Ürün Seçin...</option>
-                    {% for p in products %}
-                    <option value="{{ p.id }}">{{ p.name }} (Stok: {{ p.stock_quantity }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label text-muted small">Miktar</label>
-                <input name="quantity" type="number" step="0.01" class="form-control" placeholder="Örn: 2" required>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label text-muted small">Sebep</label>
-                <input name="reason" class="form-control" placeholder="Örn: Son kullanma tarihi geçti, kırıldı vb.">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-warning w-100 text-dark fw-bold">Fireyi İşle</button>
-            </div>
-        </form>
+<div class="container-fluid mt-4 px-4">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">📉 Fire ve Zayi Takibi</h2>
+            <p class="text-muted small">Bozulan, son kullanma tarihi geçen veya kaybolan ürünleri buradan sisteme işleyerek stok ve kâr durumunuzu güncelleyin.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-warning fw-bold shadow-sm text-dark" data-bs-toggle="modal" data-bs-target="#yeniFireModal">
+                ⚠️ Yeni Fire İşle
+            </button>
+        </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Ürün</th>
-                        <th>Miktar</th>
-                        <th>Maliyet Kaybı</th>
-                        <th>Neden</th>
-                        <th class="text-end">İşlem</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for w in wastes.items %}
-                    <tr>
-                        <td>{{ w.date.strftime('%d.%m.%Y - %H:%M') }}</td>
-                        <td><strong>{{ w.product.name }}</strong></td>
-                        <td>{{ w.quantity }} {{ w.product.unit }}</td>
-                        <td class="text-danger">-{{ "%.2f"|format(w.quantity * w.cost) }} TL</td>
-                        <td class="text-muted">{{ w.reason }}</td>
-                        <td class="text-end">
-                            <a href="/waste/delete/{{ w.id }}" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Bu kaydı silerseniz ürün stoğa geri eklenecektir. Emin misiniz?')">Sil (Geri Al)</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-4">Bu dönemde kayıtlı bir fire bulunmuyor.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            {% if wastes.pages > 1 %}
-            <nav aria-label="Sayfa Gezinme" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if wastes.has_prev %}
-                    <li class="page-item"><a class="page-link" href="/wastes?page={{ wastes.prev_num }}">Önceki</a></li>
-                    {% endif %}
-                    
-                    {% for page_num in wastes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                        {% if page_num %}
-                            {% if page_num == wastes.page %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                            {% else %}
-                            <li class="page-item"><a class="page-link" href="/wastes?page={{ page_num }}">{{ page_num }}</a></li>
-                            {% endif %}
-                        {% else %}
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
-                        {% endif %}
-                    {% endfor %}
+    {% if error %}
+    <div class="alert alert-danger fw-bold shadow-sm border-start border-4 border-danger">
+        ❌ {{ error }}
+    </div>
+    {% endif %}
 
-                    {% if wastes.has_next %}
-                    <li class="page-item"><a class="page-link" href="/wastes?page={{ wastes.next_num }}">Sonraki</a></li>
-                    {% endif %}
-                </ul>
-            </nav>
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-dark text-white fw-bold py-3">
+            📋 {{ active_period.name }} - Fire Kayıtları
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3">Tarih</th>
+                            <th class="py-3">Ürün Adı</th>
+                            <th class="py-3 text-center">Miktar</th>
+                            <th class="py-3 text-end">Birim Maliyet</th>
+                            <th class="py-3 text-end">Toplam Kayıp</th>
+                            <th class="py-3 ps-4">Neden / Açıklama</th>
+                            <th class="text-end pe-4 py-3">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in wastes %}
+                        <tr>
+                            <td class="ps-4 text-muted small">
+                                {{ w.date.strftime('%d.%m.%Y - %H:%M') if w.date else '-' }}
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ w.product.name if w.product else 'Silinmiş Ürün' }}</div>
+                                <small class="text-muted">Barkod: {{ w.product.barcode if w.product else '-' }}</small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-danger border fw-bold fs-6">{{ w.quantity }} {{ w.product.unit if w.product else '' }}</span>
+                            </td>
+                            <td class="text-end text-muted small">{{ "%.2f"|format(w.cost) }} ₺</td>
+                            <td class="text-end text-danger fw-bold">{{ "%.2f"|format(w.quantity * w.cost) }} ₺</td>
+                            <td class="ps-4">
+                                <span class="text-muted italic">{{ w.reason if w.reason else '-' }}</span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="/waste/delete/{{ w.id }}" class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="return confirm('Bu fire kaydını silerseniz ürün stoğu depoya geri yüklenecektir. Emin misiniz?')">Sil</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <p class="mb-0 fs-5">Bu dönemde henüz kaydedilmiş bir fire/zayi bulunmuyor.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if pagination.pages > 1 %}
+            <div class="d-flex justify-content-center mt-4 mb-3">
+                <nav aria-label="Sayfa Gezinme">
+                    <ul class="pagination pagination-sm shadow-sm">
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/wastes?page={{ pagination.prev_num }}">&laquo; Önceki</a>
+                        </li>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if pagination.page == page_num %}
+                                    <li class="page-item active"><span class="page-link bg-warning border-warning text-dark fw-bold">{{ page_num }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link text-dark" href="/wastes?page={{ page_num }}">{{ page_num }}</a></li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link text-muted">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/wastes?page={{ pagination.next_num }}">Sonraki &raquo;</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
             {% endif %}
             
+            <div class="text-center text-muted small mt-2 mb-4">
+                Toplam <strong>{{ pagination.total }}</strong> fire kaydı listeleniyor. (Sayfa {{ pagination.page }} / {{ pagination.pages }})
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="yeniFireModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-warning border-2">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold">📉 Yeni Fire/Zayi İşle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/wastes">
+                <div class="modal-body bg-light">
+                    <div class="alert alert-info small py-2">
+                        ⚠️ Fire işlendiğinde, ürünün maliyeti o dönemki kârınızdan otomatik olarak düşülür ve stoklar azaltılır.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase">Fire Veren Ürün</label>
+                        <select name="product_id" class="form-select select2" required>
+                            <option value="" disabled selected>Ürün seçin...</option>
+                            {% for p in products %}
+                            <option value="{{ p.id }}">{{ p.name }} (Mevcut Stok: {{ p.stock_quantity }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase">Fire Miktarı</label>
+                        <input type="number" step="0.01" name="quantity" class="form-control form-control-lg fw-bold text-danger" placeholder="0.00" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase">Neden / Açıklama</label>
+                        <textarea name="reason" class="form-control" rows="3" placeholder="Örn: Tarihi geçmiş, Ambalajı bozuk, Müşteri iadesi kusurlu vb."></textarea>
+                    </div>
+                    
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-warning px-4 fw-bold shadow-sm">Fireyi Kaydet</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

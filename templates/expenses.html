@@ -1,84 +1,135 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">İşletme Giderleri</h2>
-
-    {% if error %}
-    <div class="alert alert-danger fw-bold shadow-sm">{{ error }}</div>
-    {% endif %}
-
-    <div class="card p-4 mb-4 shadow-sm border-danger border-start border-4">
-        <h5 class="card-title mb-3">Yeni Gider Kaydet</h5>
-        <form method="POST" action="/expenses" class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label text-muted small">Harcama Açıklaması</label>
-                <input type="text" name="description" class="form-control" placeholder="Örn: Mart Ayı Elektrik Faturası" required>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label text-muted small">Tutar (TL)</label>
-                <input type="number" name="amount" step="0.01" class="form-control" placeholder="0.00" required>
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-danger w-100">Gideri İşle</button>
-            </div>
-        </form>
+<div class="container-fluid mt-4 px-4">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">💸 İşletme Giderleri</h2>
+            <p class="text-muted small">Maaş, elektrik, su, kira ve günlük dükkan harcamalarınızı buradan takip edin.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-danger fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#yeniGiderModal">
+                + Yeni Gider Ekle
+            </button>
+        </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Açıklama</th>
-                        <th>Tutar</th>
-                        <th class="text-end">İşlem</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for e in expenses.items %}
-                    <tr>
-                        <td>{{ e.date.strftime('%d.%m.%Y - %H:%M') }}</td>
-                        <td>{{ e.description }}</td>
-                        <td><strong class="text-danger">-{{ "%.2f"|format(e.amount) }} TL</strong></td>
-                        <td class="text-end">
-                            <a href="/expense/delete/{{ e.id }}" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Bu gider kaydını silmek istediğine emin misin?')">Sil</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted py-4">Henüz kayıtlı bir gider bulunmuyor.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            
-            {% if expenses.pages > 1 %}
-            <nav aria-label="Sayfa Gezinme" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if expenses.has_prev %}
-                    <li class="page-item"><a class="page-link" href="/expenses?page={{ expenses.prev_num }}">Önceki</a></li>
-                    {% endif %}
-                    
-                    {% for page_num in expenses.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                        {% if page_num %}
-                            {% if page_num == expenses.page %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                            {% else %}
-                            <li class="page-item"><a class="page-link" href="/expenses?page={{ page_num }}">{{ page_num }}</a></li>
-                            {% endif %}
-                        {% else %}
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
-                        {% endif %}
-                    {% endfor %}
+    {% if error %}
+    <div class="alert alert-danger fw-bold shadow-sm border-start border-4 border-danger">
+        ⚠️ {{ error }}
+    </div>
+    {% endif %}
 
-                    {% if expenses.has_next %}
-                    <li class="page-item"><a class="page-link" href="/expenses?page={{ expenses.next_num }}">Sonraki</a></li>
-                    {% endif %}
-                </ul>
-            </nav>
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-dark text-white fw-bold py-3">
+            📋 {{ active_period.name }} - İşlenen Giderler
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3" style="width: 15%;">Tarih / Saat</th>
+                            <th class="py-3">Gider Açıklaması</th>
+                            <th class="py-3 text-end" style="width: 20%;">Tutar</th>
+                            <th class="text-end pe-4 py-3" style="width: 15%;">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exp in expenses %}
+                        <tr>
+                            <td class="ps-4 text-muted small fw-bold">
+                                {% if exp.date %}
+                                    {{ exp.date.strftime('%d.%m.%Y - %H:%M') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="fw-bold fs-6">
+                                {{ exp.description }}
+                            </td>
+                            <td class="text-end text-danger fw-bold fs-5">
+                                -{{ "%.2f"|format(exp.amount) }} ₺
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="/expense/delete/{{ exp.id }}" class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="return confirm('Bu gider kaydını silmek istediğinize emin misiniz?')">Sil</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <p class="mb-0 fs-5">Bu dönemde henüz kaydedilmiş bir gider bulunmuyor.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if pagination.pages > 1 %}
+            <div class="d-flex justify-content-center mt-4 mb-3">
+                <nav aria-label="Sayfa Gezinme">
+                    <ul class="pagination pagination-sm shadow-sm">
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/expenses?page={{ pagination.prev_num }}">&laquo; Önceki</a>
+                        </li>
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if pagination.page == page_num %}
+                                    <li class="page-item active"><span class="page-link bg-danger border-danger text-white fw-bold">{{ page_num }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link text-dark" href="/expenses?page={{ page_num }}">{{ page_num }}</a></li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link text-muted">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link text-dark fw-bold" href="/expenses?page={{ pagination.next_num }}">Sonraki &raquo;</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
             {% endif %}
             
+            <div class="text-center text-muted small mt-2 mb-4">
+                Toplam <strong>{{ pagination.total }}</strong> gider kaydı. Sayfa {{ pagination.page }} / {{ pagination.pages }}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="yeniGiderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">+ Yeni Gider Fişi İşle</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/expenses">
+                <div class="modal-body bg-light">
+                    <p class="text-muted small mb-4">Kasadan veya bankadan çıkan masrafları buraya girerek net kârınızı doğru hesaplayabilirsiniz.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase text-muted">Açıklama</label>
+                        <input type="text" name="description" class="form-control" placeholder="Örn: Nisan Ayı Elektrik Faturası, Personel Avansı vb." required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase text-danger">Çıkan Tutar</label>
+                        <div class="input-group">
+                            <input type="number" step="0.01" name="amount" class="form-control form-control-lg text-danger fw-bold" placeholder="0.00" required>
+                            <span class="input-group-text bg-white fw-bold">₺</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-danger px-4 fw-bold shadow-sm">Masrafı İşle</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
