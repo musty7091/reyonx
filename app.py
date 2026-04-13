@@ -1,7 +1,11 @@
 from flask import Flask
+import os
+from dotenv import load_dotenv
 from database import db
 from flask_migrate import Migrate
-import os
+
+# Gizli kasa dosyasını (.env) sisteme yüklüyoruz
+load_dotenv()
 
 # Rota (Sayfa) dosyalarımızı içeri aktarıyoruz
 from routes.auth_routes import auth_bp
@@ -20,11 +24,10 @@ from models import User
 
 app = Flask(__name__)
 
-# Ayarlar
-app.config["SECRET_KEY"] = "super-secret-key"
+# AYARLAR (Bilgileri .env dosyasından çekiyoruz)
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///reyonx.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["BONUS_RATE"] = 0.05  # Prim oranı %5
 
 # Veritabanını uygulamaya bağlıyoruz
 db.init_app(app)
@@ -44,15 +47,31 @@ app.register_blueprint(expense_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(settings_bp)
 
-# BAŞLATMA
+# ==========================================
+# UYGULAMA BAŞLATMA VE VERİTABANI KURULUMU
+# ==========================================
 if __name__ == "__main__":
     with app.app_context():
-        # Tüm tabloları veritabanında oluşturur
+        # Veritabanı tablolarını oluşturur
         db.create_all()
         
-        # Eğer sistemde admin yoksa otomatik oluşturur (Şifre: 1234)
-        if not User.query.filter_by(username="admin").first():
-            db.session.add(User(username="admin", password="1234"))
+        # Sistemde 'admin' isimli bir kullanıcı var mı diye bakıyoruz
+        admin_user = User.query.filter_by(username="admin").first()
+        
+        # Eğer admin hesabı henüz hiç oluşturulmamışsa:
+        if not admin_user:
+            admin_user = User(username="admin")
+            
+            # Şifreyi kodun içinden değil, .env dosyasındaki kasadan alıyoruz
+            # Eğer kasada şifre bulamazsa varsayılan olarak "1234" yapar
+            default_password = os.getenv("ADMIN_DEFAULT_PASS", "1234")
+            
+            # models.py içindeki hashleme fonksiyonunu kullanarak şifreyi gizliyoruz
+            admin_user.set_password(default_password) 
+            
+            db.session.add(admin_user)
             db.session.commit()
+            print("Sistem İlk Kurulum: Güvenli yönetici hesabı oluşturuldu.")
 
+    # Geliştirme modunda uygulamayı çalıştır
     app.run(debug=True)

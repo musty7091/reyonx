@@ -1,4 +1,4 @@
-from flask import Blueprint, request, redirect, render_template, session
+from flask import Blueprint, request, redirect, render_template, session, flash
 from models import User
 
 # Bu dosyayı bir modül (Blueprint) olarak tanımlıyoruz
@@ -14,13 +14,19 @@ def check_login():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        u = request.form.get("username")
-        p = request.form.get("password")
-        user = User.query.filter_by(username=u).first()
-        if user and user.password == p:
+        username = request.form.get("username")
+        password = request.form.get("password")
+        
+        user = User.query.filter_by(username=username).first()
+        
+        # ARTIK DÜZ ŞİFRE KONTROLÜ YAPMIYORUZ! check_password fonksiyonunu kullanıyoruz.
+        if user and user.check_password(password):
             session["user_id"] = user.id
+            flash("Başarıyla giriş yapıldı!", "success")
             return redirect("/")
-        return "Hatalı giriş"
+        else:
+            flash("Kullanıcı adı veya şifre hatalı!", "danger")
+            
     return render_template("login.html")
 
 @auth_bp.route("/logout")
