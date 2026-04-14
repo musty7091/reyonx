@@ -48,8 +48,13 @@ def invoices():
                 
                 for i in range(len(product_ids)):
                     p_id = product_ids[i]
-                    qty = Decimal(quantities[i])
-                    net_unit = Decimal(unit_prices[i]) 
+                    
+                    # Sayısal girişler için virgül koruması
+                    qty_str = quantities[i].replace(',', '.') if quantities[i] else '0'
+                    price_str = unit_prices[i].replace(',', '.') if unit_prices[i] else '0'
+                    
+                    qty = Decimal(qty_str)
+                    net_unit = Decimal(price_str) 
                     
                     product = Product.query.get(p_id)
                     v_rate = Decimal(product.vat_rate) if product else Decimal('20.00')
@@ -130,8 +135,13 @@ def invoice_detail(id):
     if request.method == "POST":
         try:
             p_id = request.form.get("product_id")
-            qty = Decimal(request.form.get("quantity"))
-            net_unit = Decimal(request.form.get("unit_price")) 
+            
+            # Detay ekleme sayfası için virgül koruması
+            qty_str = request.form.get("quantity").replace(',', '.') if request.form.get("quantity") else '0'
+            price_str = request.form.get("unit_price").replace(',', '.') if request.form.get("unit_price") else '0'
+            
+            qty = Decimal(qty_str)
+            net_unit = Decimal(price_str) 
             
             product = Product.query.get(p_id)
             v_rate = Decimal(product.vat_rate) if product else Decimal('20.00')

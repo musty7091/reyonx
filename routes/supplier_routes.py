@@ -38,7 +38,11 @@ def supplier_detail(id):
     if request.method == "POST":
         amount = request.form.get("amount")
         desc = request.form.get("description")
+        
         if amount:
+            # Virgülü noktaya çevirme koruması
+            amount = amount.replace(',', '.')
+            
             # Ödenen tutarı Decimal (kuruş hassasiyetli sayı) olarak kaydediyoruz
             payment = Payment(supplier_id=id, amount=Decimal(amount), description=desc)
             db.session.add(payment)

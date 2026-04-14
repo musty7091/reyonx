@@ -69,6 +69,16 @@ def sales():
                 new_sale.total_revenue = calc_revenue
                 new_sale.total_cost = calc_cost
                 new_sale.total_profit = calc_revenue - calc_cost
+                
+                # AKTİF DÖNEMİN (PERIOD) KASA TOPLAMLARINA EKLEME YAPIYORUZ
+                if active_period.total_revenue is None: active_period.total_revenue = Decimal('0.00')
+                if active_period.total_cost is None: active_period.total_cost = Decimal('0.00')
+                if active_period.net_profit is None: active_period.net_profit = Decimal('0.00')
+
+                active_period.total_revenue += new_sale.total_revenue
+                active_period.total_cost += new_sale.total_cost
+                active_period.net_profit += new_sale.total_profit
+
                 db.session.commit()
                 return redirect("/sales")
         except Exception as e:
@@ -102,12 +112,25 @@ def delete_sale(id):
     try:
         sale = Sale.query.get(id)
         if sale:
+            # SİLİNEN SATIŞIN TUTARLARINI KASADAN (PERIOD) GERİ DÜŞÜYORUZ
+            period = Period.query.get(sale.period_id)
+            if period:
+                if period.total_revenue is not None:
+                    period.total_revenue -= sale.total_revenue
+                if period.total_cost is not None:
+                    period.total_cost -= sale.total_cost
+                if period.net_profit is not None:
+                    period.net_profit -= sale.total_profit
+
+            # STOKLARI GERİ EKLİYORUZ
             for item in sale.items:
                 product = Product.query.get(item.product_id)
                 if product:
                     product.stock_quantity = Decimal(product.stock_quantity) + Decimal(item.quantity)
+            
             db.session.delete(sale)
             db.session.commit()
     except Exception as e:
         db.session.rollback()
+        print(f"Silme Hatası: {e}")
     return redirect("/sales")

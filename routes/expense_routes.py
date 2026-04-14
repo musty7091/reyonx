@@ -22,7 +22,11 @@ def expenses():
         try:
             desc = request.form.get("description")
             amt = request.form.get("amount")
+            
             if desc and amt:
+                # Kullanıcı virgül girerse otomatik noktaya çevir
+                amt = amt.replace(',', '.')
+                
                 new_exp = Expense(
                     description=desc, 
                     amount=Decimal(amt), 

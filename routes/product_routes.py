@@ -1,4 +1,4 @@
-from flask import Blueprint, request, redirect, render_template 
+from flask import Blueprint, request, redirect, render_template, flash
 from database import db
 from models import Product, Supplier
 from utils.audit import log_action
@@ -93,8 +93,14 @@ def products():
 def delete_product(id):
     p = Product.query.get(id)
     if p:
-        db.session.delete(p)
-        db.session.commit()
+        try:
+            db.session.delete(p)
+            db.session.commit()
+        except Exception as e:
+            # Sistem çökmesin diye işlemi geri alıyoruz
+            db.session.rollback()
+            # Kullanıcıya hata mesajı gösteriyoruz
+            flash("Bu ürün geçmiş satışlarda veya faturalarda kullanıldığı için tamamen silinemez! Bunun yerine pasife almayı deneyin.", "danger")
     return redirect("/products")
 
 @product_bp.route("/product/toggle/<int:id>")

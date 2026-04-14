@@ -25,6 +25,9 @@ def wastes():
             reason = request.form.get("reason")
             
             if product_id and quantity:
+                # Miktar için virgül koruması
+                quantity = quantity.replace(',', '.')
+                
                 product = Product.query.get(product_id)
                 qty_dec = Decimal(quantity)
                 

@@ -16,6 +16,8 @@ def settings():
     if request.method == "POST":
         new_rate = request.form.get("bonus_rate")
         if new_rate:
+            # Kullanıcı virgül girerse otomatik noktaya çevir
+            new_rate = new_rate.replace(',', '.')
             try:
                 # Sayısal kontrol
                 float(new_rate)
