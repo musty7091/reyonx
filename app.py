@@ -1,9 +1,10 @@
-from flask import Flask
+from flask import Flask, session, redirect, url_for, request
 import os
 from dotenv import load_dotenv
 from database import db
 from flask_migrate import Migrate
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from flask_wtf import CSRFProtect
 
 # .env yükle
 load_dotenv()
@@ -35,20 +36,21 @@ if not SECRET_KEY:
 
 app.config["SECRET_KEY"] = SECRET_KEY
 
-# DB artık env'den
+# DB
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
     "sqlite:///reyonx.db"
 )
-
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 
 # Session güvenliği
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
+
+# CSRF koruma
+csrf = CSRFProtect(app)
 
 # DB init
 db.init_app(app)
@@ -66,40 +68,55 @@ app.register_blueprint(expense_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(settings_bp)
 
-
-# =========================
-# SESSION TIMEOUT
-# =========================
-from datetime import datetime, timedelta
-from flask import session, redirect, url_for
+# ==========================================
+# LOGIN + SESSION KONTROL
+# ==========================================
 
 @app.before_request
-def session_timeout():
-    if "user_id" in session:
-        login_time = session.get("login_time")
+def security_control():
 
-        if login_time:
-            try:
-                login_time = datetime.fromisoformat(login_time)
-            except:
-                session.clear()
-                return redirect(url_for("auth.login"))
+    # endpoint yoksa geç
+    if not request.endpoint:
+        return
 
-            # 30 dakika dolmuşsa logout
-            if datetime.utcnow() - login_time > timedelta(minutes=30):
-                session.clear()
-                return redirect(url_for("auth.login"))
+    # login gerekmeyenler
+    allowed_routes = ["auth.login", "static"]
 
-            # 🔥 AKTİF KULLANICI → SÜREYİ YENİLE
-            session["login_time"] = datetime.utcnow().isoformat()
+    if request.endpoint in allowed_routes:
+        return
+
+    # login kontrolü
+    if "user_id" not in session:
+        return redirect(url_for("auth.login"))
+
+    # session timeout kontrolü
+    login_time = session.get("login_time")
+
+    if login_time:
+        try:
+            login_time = datetime.fromisoformat(login_time)
+            
+            if login_time.tzinfo is None:
+                login_time = login_time.replace(tzinfo=timezone.utc)    
+        except:
+            session.clear()
+            return redirect(url_for("auth.login"))
+
+        now = datetime.now(timezone.utc)
+
+        if now - login_time > timedelta(minutes=30):
+            session.clear()
+            return redirect(url_for("auth.login"))
+
+        # aktif kullanıcı → süreyi yenile
+        session["login_time"] = now.isoformat()
 
 # ==========================================
 # İLK KURULUM (ADMIN)
 # ==========================================
+
 if __name__ == "__main__":
     with app.app_context():
-
-        # ❌ create_all kaldırıldı (MIGRATION kullanacağız)
 
         admin_user = User.query.filter_by(username="admin").first()
 
@@ -119,7 +136,6 @@ if __name__ == "__main__":
 
             print("Admin kullanıcı oluşturuldu.")
 
-    # DEBUG artık ENV'e bağlı
     DEBUG_MODE = os.getenv("DEBUG", "False") == "True"
 
     app.run(debug=DEBUG_MODE)

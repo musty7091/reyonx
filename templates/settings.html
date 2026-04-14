@@ -18,6 +18,7 @@
                     <h5 class="card-title fw-bold">Prim Ayarları</h5>
                     <p class="text-muted small">Dönem sonu raporlarında net kâr üzerinden hesaplanacak personel prim oranını buradan belirleyebilirsiniz.</p>
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Personel Prim Oranı (%)</label>
                             <div class="input-group">
