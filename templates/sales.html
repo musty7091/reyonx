@@ -116,6 +116,7 @@
             </div>
             
             <form method="POST" action="/sales">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <p class="text-muted mb-4">Müşteriden tahsil ettiğiniz <b>KDV DAHİL</b> fiyatları giriniz. Sistem maliyeti de KDV dahil hesaplayıp net kârı bulacaktır.</p>
                     <hr>

@@ -113,6 +113,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="/wastes">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body bg-light">
                     <div class="alert alert-info small py-2">
                         ⚠️ Fire işlendiğinde, ürünün maliyeti o dönemki kârınızdan otomatik olarak düşülür ve stoklar azaltılır.

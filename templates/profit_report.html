@@ -78,6 +78,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="/period/close">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <p>Mevcut hesaplar dondurulacak ve arşive kaldırılacaktır. Yeni ve temiz bir fatura/satış sayfası açılacaktır. <b>Stoklarınız sıfırlanmaz, devretmeye devam eder.</b></p>
                     <div class="mb-3">

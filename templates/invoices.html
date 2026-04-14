@@ -124,6 +124,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="/invoices">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body bg-light">
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-body">

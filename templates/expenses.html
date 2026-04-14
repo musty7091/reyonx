@@ -108,6 +108,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="/expenses">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body bg-light">
                     <p class="text-muted small mb-4">Kasadan veya bankadan çıkan masrafları buraya girerek net kârınızı doğru hesaplayabilirsiniz.</p>
                     

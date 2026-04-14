@@ -7,6 +7,7 @@
     <div class="card p-4 mb-4 shadow-sm border-primary border-start border-4">
         <h5 class="card-title mb-3">Yeni Tedarikçi Ekle</h5>
         <form method="POST" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-4">
                 <input name="name" class="form-control" placeholder="Firma adı" required>
             </div>

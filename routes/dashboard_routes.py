@@ -3,6 +3,7 @@ from database import db
 from models import Product, Invoice, Sale, Waste, Expense, Period, Payment, SaleItem
 from decimal import Decimal
 from flask import session, redirect, url_for
+from flask import request
 
 # Bu dosyanın ana sayfa ve genel envanter sayfalarından sorumlu olduğunu belirtiyoruz
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -130,5 +131,16 @@ def inventory():
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
 
-    products = Product.query.filter_by(is_active=True).all()
-    return render_template("inventory.html", products=products)
+    page = request.args.get("page", 1, type=int)
+
+    data = Product.query.filter_by(is_active=True).order_by(Product.name.asc()).paginate(
+        page=page,
+        per_page=10,
+        error_out=False
+    )
+
+    return render_template(
+        "inventory.html",
+        products=data.items,
+        pagination=data
+    )
