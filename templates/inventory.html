@@ -1,51 +1,94 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Envanter Durumu (Stoklar)</h2>
-    </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Barkod</th>
-                        <th>Ürün Adı</th>
-                        <th>Tedarikçi</th>
-                        <th class="text-end">Mevcut Stok</th>
-                        <th>Birim</th>
-                        <th>Durum</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in products %}
-                    <tr>
-                        <td>{{ p.barcode }}</td>
-                        <td><strong>{{ p.name }}</strong></td>
-                        <td>{{ p.supplier.name if p.supplier else "-" }}</td>
-                        <td class="text-end">
-                            {% if p.stock_quantity <= 0 %}
-                                <span class="text-danger fw-bold">{{ p.stock_quantity }}</span>
-                            {% else %}
-                                <span class="text-success fw-bold">{{ p.stock_quantity }}</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ p.unit }}</td>
-                        <td>
-                            {% if p.stock_quantity <= 0 %}
-                                <span class="badge bg-danger">Stok Yok</span>
-                            {% elif p.stock_quantity < 10 %}
-                                <span class="badge bg-warning text-dark">Kritik Stok</span>
-                            {% else %}
-                                <span class="badge bg-success">Yeterli</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="container-fluid mt-4 px-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">📦 Envanter Durumu</h2>
+            <p class="text-muted small">Stok seviyelerini ve ürün durumlarını buradan takip edebilirsiniz.</p>
         </div>
     </div>
+
+    <!-- CARD -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white fw-bold py-3">
+            📊 Mevcut Stok Listesi
+        </div>
+
+        <div class="card-body p-0">
+
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3">Barkod</th>
+                            <th class="py-3">Ürün Adı</th>
+                            <th class="py-3">Tedarikçi</th>
+                            <th class="py-3 text-end">Stok</th>
+                            <th class="py-3">Birim</th>
+                            <th class="text-center py-3">Durum</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for p in products %}
+                        <tr>
+
+                            <td class="ps-4 text-muted small">
+                                {{ p.barcode }}
+                            </td>
+
+                            <td class="fw-bold text-dark">
+                                {{ p.name }}
+                            </td>
+
+                            <td>
+                                {{ p.supplier.name if p.supplier else "-" }}
+                            </td>
+
+                            <td class="text-end fw-bold">
+                                {% if p.stock_quantity <= 0 %}
+                                    <span class="text-danger">{{ p.stock_quantity }}</span>
+                                {% elif p.stock_quantity < 10 %}
+                                    <span class="text-warning">{{ p.stock_quantity }}</span>
+                                {% else %}
+                                    <span class="text-success">{{ p.stock_quantity }}</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-muted">
+                                {{ p.unit }}
+                            </td>
+
+                            <td class="text-center">
+                                {% if p.stock_quantity <= 0 %}
+                                    <span class="badge bg-danger px-3 py-2">Stok Yok</span>
+                                {% elif p.stock_quantity < 10 %}
+                                    <span class="badge bg-warning text-dark px-3 py-2">Kritik</span>
+                                {% else %}
+                                    <span class="badge bg-success px-3 py-2">Yeterli</span>
+                                {% endif %}
+                            </td>
+
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <p class="mb-0 fs-5">Henüz envanter kaydı bulunmuyor.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+        </div>
+    </div>
+
 </div>
+
 {% endblock %}
