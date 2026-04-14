@@ -28,7 +28,7 @@ def invoices():
             
             product_ids = request.form.getlist("product_id[]")
             quantities = request.form.getlist("quantity[]")
-            unit_prices = request.form.getlist("unit_price[]") # KULLANICI BURAYA KDV HARİÇ GİRER
+            unit_prices = request.form.getlist("unit_price[]")
             
             if s_id and product_ids:
                 new_inv = Invoice(supplier_id=s_id, period_id=active_period.id, invoice_no=invoice_no, invoice_type=invoice_type)
@@ -48,8 +48,6 @@ def invoices():
                 
                 for i in range(len(product_ids)):
                     p_id = product_ids[i]
-                    
-                    # Sayısal girişler için virgül koruması
                     qty_str = quantities[i].replace(',', '.') if quantities[i] else '0'
                     price_str = unit_prices[i].replace(',', '.') if unit_prices[i] else '0'
                     
@@ -104,14 +102,13 @@ def invoices():
                 db.session.commit()
                 return redirect("/invoices")
         except Exception as e:
-            # Hata yakalandı, sistemi geriye sar!
             db.session.rollback()
             error = "Fatura işlenirken bir hata oluştu. Lütfen boş alan bırakmadığınızdan emin olun."
             print(f"Sistem Hatası: {e}")
     
-    # SAYFALAMA (PAGINATION) İŞLEMİ
     page = request.args.get('page', 1, type=int)
-    paginated_invoices = Invoice.query.filter_by(period_id=active_period.id).order_by(Invoice.date.desc()).paginate(page=page, per_page=10, error_out=False)
+    # Sadece iptal edilmeyenleri ekrana getir
+    paginated_invoices = Invoice.query.filter_by(period_id=active_period.id, is_cancelled=False).order_by(Invoice.date.desc()).paginate(page=page, per_page=10, error_out=False)
     
     suppliers = Supplier.query.all()
     products = Product.query.all()
@@ -128,6 +125,7 @@ def invoices():
 
 @invoice_bp.route("/invoice/<int:id>", methods=["GET", "POST"])
 def invoice_detail(id):
+    # Eğer iptal edildiyse 404 verebilir veya gösterebiliriz, detaya girilebilsin diye düz get yapıyoruz
     inv = Invoice.query.get_or_404(id)
     products = Product.query.all()
     error = None
@@ -135,8 +133,6 @@ def invoice_detail(id):
     if request.method == "POST":
         try:
             p_id = request.form.get("product_id")
-            
-            # Detay ekleme sayfası için virgül koruması
             qty_str = request.form.get("quantity").replace(',', '.') if request.form.get("quantity") else '0'
             price_str = request.form.get("unit_price").replace(',', '.') if request.form.get("unit_price") else '0'
             
@@ -188,7 +184,7 @@ def invoice_detail(id):
             return redirect(f"/invoice/{id}")
         except Exception as e:
             db.session.rollback()
-            error = "Ürün eklenirken bir hata oluştu. Miktar veya fiyat kısmını kontrol edin."
+            error = "Ürün eklenirken bir hata oluştu."
             print(f"Sistem Hatası: {e}")
             
     return render_template("invoice_detail.html", invoice=inv, products=products, error=error)
@@ -223,7 +219,8 @@ def delete_invoice_item(item_id):
 def delete_invoice(id):
     try:
         inv = Invoice.query.get(id)
-        if inv:
+        if inv and not inv.is_cancelled:
+            # Fatura içindeki ürünleri depodan geri çek/ekle
             for item in inv.items:
                 product = Product.query.get(item.product_id)
                 if product:
@@ -231,7 +228,9 @@ def delete_invoice(id):
                         product.stock_quantity = Decimal(product.stock_quantity) - Decimal(item.quantity)
                     else:
                         product.stock_quantity = Decimal(product.stock_quantity) + Decimal(item.quantity)
-            db.session.delete(inv)
+            
+            # FİZİKSEL SİLME YOK, SADECE İPTAL ET
+            inv.is_cancelled = True
             db.session.commit()
     except Exception as e:
         db.session.rollback()

@@ -24,11 +24,10 @@ def get_bonus_rate():
     return Decimal(rate_setting.setting_value) if rate_setting else Decimal("5")
 
 def calculate_debt_at_time(end_time):
-    # OPTİMİZASYON: Bütün faturaları çekip Python'da toplamak yerine, 
-    # doğrudan veritabanından (SQL) toplam değeri (SUM) istiyoruz.
-    query_inv_alis = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "alis")
-    query_inv_iade = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "iade")
-    query_pay = db.session.query(func.sum(Payment.amount))
+    # İptal edilen kayıtları SQL sorgusunda harici tutuyoruz (is_cancelled == False)
+    query_inv_alis = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "alis", Invoice.is_cancelled == False)
+    query_inv_iade = db.session.query(func.sum(Invoice.total_amount)).filter(Invoice.invoice_type == "iade", Invoice.is_cancelled == False)
+    query_pay = db.session.query(func.sum(Payment.amount)).filter(Payment.is_cancelled == False)
     
     if end_time:
         query_inv_alis = query_inv_alis.filter(Invoice.date <= end_time)
@@ -45,12 +44,11 @@ def calculate_debt_at_time(end_time):
 def report():
     active_period = get_active_period()
     
-    # OPTİMİZASYON: On binlerce veriyi hafızaya alıp Python'da toplamak yerine, 
-    # doğrudan veritabanından yekünleri (SUM) çekiyoruz.
-    total_revenue = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
-    total_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
-    total_waste_cost = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id).scalar() or Decimal('0.00')
-    total_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id).scalar() or Decimal('0.00')
+    # Rapor ekranında veritabanı toplamlarını çekerken iptal edilenleri saymıyoruz
+    total_revenue = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id, Sale.is_cancelled == False).scalar() or Decimal('0.00')
+    total_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id, Sale.is_cancelled == False).scalar() or Decimal('0.00')
+    total_waste_cost = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id, Waste.is_cancelled == False).scalar() or Decimal('0.00')
+    total_expenses = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id, Expense.is_cancelled == False).scalar() or Decimal('0.00')
 
     gross_profit = total_revenue - total_cost
     net_profit = gross_profit - total_waste_cost - total_expenses
@@ -60,8 +58,7 @@ def report():
     
     current_debt = calculate_debt_at_time(None)
 
-    # Ekranda listelemek için sadece o dönemin fire kayıtlarını çekiyoruz
-    wastes = Waste.query.filter_by(period_id=active_period.id).all()
+    wastes = Waste.query.filter_by(period_id=active_period.id, is_cancelled=False).all()
 
     return render_template(
         "profit_report.html",
@@ -82,11 +79,10 @@ def report():
 def close_period():
     active_period = get_active_period()
     
-    # OPTİMİZASYON: Dönem kapatırken de hızlı SUM (Toplama) yapıyoruz
-    t_rev = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
-    t_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id).scalar() or Decimal('0.00')
-    t_waste = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id).scalar() or Decimal('0.00')
-    t_exp = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id).scalar() or Decimal('0.00')
+    t_rev = db.session.query(func.sum(Sale.total_revenue)).filter(Sale.period_id == active_period.id, Sale.is_cancelled == False).scalar() or Decimal('0.00')
+    t_cost = db.session.query(func.sum(Sale.total_cost)).filter(Sale.period_id == active_period.id, Sale.is_cancelled == False).scalar() or Decimal('0.00')
+    t_waste = db.session.query(func.sum(Waste.quantity * Waste.cost)).filter(Waste.period_id == active_period.id, Waste.is_cancelled == False).scalar() or Decimal('0.00')
+    t_exp = db.session.query(func.sum(Expense.amount)).filter(Expense.period_id == active_period.id, Expense.is_cancelled == False).scalar() or Decimal('0.00')
     
     n_prof = (t_rev - t_cost) - t_waste - t_exp
 
@@ -96,7 +92,6 @@ def close_period():
     active_period.total_expenses = t_exp
     active_period.net_profit = n_prof
     
-    # Kapanış anındaki prim oranını döneme kalıcı olarak mühürlüyoruz
     active_period.bonus_rate = get_bonus_rate() 
     
     active_period.end_date = datetime.utcnow()
@@ -111,10 +106,7 @@ def close_period():
 
 @report_bp.route("/periods")
 def periods():
-    # URL'den sayfa numarasını alıyoruz. Bulamazsa 1. sayfayı açar.
     page = request.args.get('page', 1, type=int)
-    
-    # Tüm verileri çekmek yerine sayfalanmış (paginated) halde 10'ar 10'ar getiriyoruz.
     periods_pagination = Period.query.order_by(Period.id.desc()).paginate(page=page, per_page=10, error_out=False)
     
     return render_template("periods.html", pagination=periods_pagination)
@@ -123,7 +115,6 @@ def periods():
 def view_archive(id):
     period = Period.query.get_or_404(id)
     
-    # Eğer dönemin mühürlü bir oranı varsa onu kullan, yoksa günceli al
     bonus_rate = period.bonus_rate if period.bonus_rate is not None else get_bonus_rate()
     bonus = (period.net_profit * (bonus_rate / Decimal("100"))) if period.net_profit > Decimal('0') else Decimal('0.00')
     
@@ -134,7 +125,7 @@ def view_archive(id):
         func.sum(SaleItem.quantity).label('total_quantity')
     ).join(SaleItem, Product.id == SaleItem.product_id)\
      .join(Sale, Sale.id == SaleItem.sale_id)\
-     .filter(Sale.period_id == period.id)\
+     .filter(Sale.period_id == period.id, Sale.is_cancelled == False)\
      .group_by(Product.id).order_by(func.sum(SaleItem.quantity).desc()).all()
     
     return render_template(
@@ -160,7 +151,7 @@ def export_excel(id):
         func.sum(SaleItem.quantity).label('total_quantity')
     ).join(SaleItem, Product.id == SaleItem.product_id)\
      .join(Sale, Sale.id == SaleItem.sale_id)\
-     .filter(Sale.period_id == period.id)\
+     .filter(Sale.period_id == period.id, Sale.is_cancelled == False)\
      .group_by(Product.id).order_by(func.sum(SaleItem.quantity).desc()).all()
 
     wb = Workbook()

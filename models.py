@@ -50,6 +50,7 @@ class Payment(BaseModel):
     amount = db.Column(db.Numeric(15, 2), nullable=False) 
     description = db.Column(db.String(200)) 
     date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_cancelled = db.Column(db.Boolean, default=False)
     
     supplier = db.relationship("Supplier", backref="payments")
 
@@ -95,6 +96,7 @@ class Invoice(BaseModel):
     total_net = db.Column(db.Numeric(15, 2), default=0.0) 
     total_vat = db.Column(db.Numeric(15, 2), default=0.0) 
     total_amount = db.Column(db.Numeric(15, 2), default=0.0) 
+    is_cancelled = db.Column(db.Boolean, default=False)
     
     supplier = db.relationship("Supplier")
     period = db.relationship("Period")
@@ -121,6 +123,7 @@ class Waste(BaseModel):
     cost = db.Column(db.Numeric(15, 2), default=0.0) 
     reason = db.Column(db.String(200))
     date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_cancelled = db.Column(db.Boolean, default=False)
     
     product = db.relationship("Product")
     period = db.relationship("Period")
@@ -132,6 +135,7 @@ class Sale(BaseModel):
     total_revenue = db.Column(db.Numeric(15, 2), default=0.0) 
     total_cost = db.Column(db.Numeric(15, 2), default=0.0)    
     total_profit = db.Column(db.Numeric(15, 2), default=0.0)  
+    is_cancelled = db.Column(db.Boolean, default=False)
     
     period = db.relationship("Period")
     items = db.relationship("SaleItem", backref="sale", lazy=True, cascade="all, delete-orphan")
@@ -154,6 +158,7 @@ class Expense(BaseModel):
     description = db.Column(db.String(250), nullable=False)
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_cancelled = db.Column(db.Boolean, default=False)
     
     period = db.relationship("Period")
 

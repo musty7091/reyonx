@@ -5,7 +5,6 @@ from decimal import Decimal
 from flask import session, redirect, url_for
 from flask import request
 
-# Bu dosyanın ana sayfa ve genel envanter sayfalarından sorumlu olduğunu belirtiyoruz
 dashboard_bp = Blueprint("dashboard", __name__)
 
 def login_required():
@@ -30,10 +29,11 @@ def index():
     active_period = get_active_period()
     products = Product.query.all()
     
-    invoices = Invoice.query.filter_by(period_id=active_period.id).all()
-    sales = Sale.query.filter_by(period_id=active_period.id).all()
-    wastes = Waste.query.filter_by(period_id=active_period.id).all()
-    expenses = Expense.query.filter_by(period_id=active_period.id).all()
+    # İptal edilen kayıtları analizden çıkarıyoruz (is_cancelled=False)
+    invoices = Invoice.query.filter_by(period_id=active_period.id, is_cancelled=False).all()
+    sales = Sale.query.filter_by(period_id=active_period.id, is_cancelled=False).all()
+    wastes = Waste.query.filter_by(period_id=active_period.id, is_cancelled=False).all()
+    expenses = Expense.query.filter_by(period_id=active_period.id, is_cancelled=False).all()
     
     total_products = len(products)
     
@@ -60,8 +60,8 @@ def index():
         "net_kar": float(real_net_profit if real_net_profit > 0 else 0)
     }
 
-    all_invoices = Invoice.query.all()
-    all_payments = Payment.query.all()
+    all_invoices = Invoice.query.filter_by(is_cancelled=False).all()
+    all_payments = Payment.query.filter_by(is_cancelled=False).all()
 
     total_alis_all = sum([
         inv.total_amount for inv in all_invoices
@@ -83,28 +83,30 @@ def index():
     ]
     critical_stocks.sort(key=lambda x: x.stock_quantity)
 
+    # İptal edilmeyen satışlardan en çok satılanları bulma
     top_products = db.session.query(
         Product.name,
         db.func.sum(SaleItem.quantity).label('total_sold')
-    ).join(SaleItem).group_by(Product.id).order_by(
+    ).join(SaleItem).join(Sale).filter(Sale.is_cancelled == False).group_by(Product.id).order_by(
         db.func.sum(SaleItem.quantity).desc()
     ).limit(5).all()
 
     recent_activities = []
     
-    for s in Sale.query.order_by(Sale.id.desc()).limit(5).all():
+    # Sadece iptal edilmeyen işlemleri recent activity listesine al
+    for s in Sale.query.filter_by(is_cancelled=False).order_by(Sale.id.desc()).limit(5).all():
         recent_activities.append({"date": s.date, "desc": "Satış Yüklendi", "amount": s.total_revenue, "color": "success", "icon": "🛒"})
         
-    for inv in Invoice.query.order_by(Invoice.id.desc()).limit(5).all():
+    for inv in Invoice.query.filter_by(is_cancelled=False).order_by(Invoice.id.desc()).limit(5).all():
         if inv.invoice_type == 'alis':
             recent_activities.append({"date": inv.date, "desc": f"Mal Alındı ({inv.supplier.name})", "amount": inv.total_amount, "color": "danger", "icon": "📥"})
         else:
             recent_activities.append({"date": inv.date, "desc": f"Mal İade ({inv.supplier.name})", "amount": inv.total_amount, "color": "warning", "icon": "📤"})
             
-    for e in Expense.query.order_by(Expense.id.desc()).limit(5).all():
+    for e in Expense.query.filter_by(is_cancelled=False).order_by(Expense.id.desc()).limit(5).all():
         recent_activities.append({"date": e.date, "desc": f"Gider: {e.description}", "amount": e.amount, "color": "danger", "icon": "💸"})
         
-    for p in Payment.query.order_by(Payment.id.desc()).limit(5).all():
+    for p in Payment.query.filter_by(is_cancelled=False).order_by(Payment.id.desc()).limit(5).all():
         recent_activities.append({"date": p.date, "desc": f"Ödeme: {p.supplier.name}", "amount": p.amount, "color": "success", "icon": "💳"})
 
     recent_activities.sort(key=lambda x: x["date"], reverse=True)

@@ -22,7 +22,7 @@ def sales():
         try:
             product_ids = request.form.getlist("product_id[]")
             quantities = request.form.getlist("quantity[]")
-            unit_prices = request.form.getlist("unit_price[]") # KDV DAHİL SATIŞ FİYATI
+            unit_prices = request.form.getlist("unit_price[]")
             
             if product_ids:
                 new_sale = Sale(period_id=active_period.id)
@@ -34,13 +34,10 @@ def sales():
                 
                 for i in range(len(product_ids)):
                     p_id = product_ids[i]
-                    qty = Decimal(quantities[i])
-                    
-                    # Kasadan çekilen KDV DAHİL satış fiyatı
-                    u_price_gross = Decimal(unit_prices[i]) 
+                    qty = Decimal(quantities[i].replace(',', '.') if quantities[i] else '0')
+                    u_price_gross = Decimal(unit_prices[i].replace(',', '.') if unit_prices[i] else '0') 
                     
                     product = Product.query.get(p_id)
-                    # Depodaki maliyetimiz arka planda KDV DAHİL hesaplanmıştı
                     cost_gross = Decimal(product.avg_cost) if product and product.avg_cost else Decimal('0.00')
                     
                     line_rev = qty * u_price_gross
@@ -70,7 +67,6 @@ def sales():
                 new_sale.total_cost = calc_cost
                 new_sale.total_profit = calc_revenue - calc_cost
                 
-                # AKTİF DÖNEMİN (PERIOD) KASA TOPLAMLARINA EKLEME YAPIYORUZ
                 if active_period.total_revenue is None: active_period.total_revenue = Decimal('0.00')
                 if active_period.total_cost is None: active_period.total_cost = Decimal('0.00')
                 if active_period.net_profit is None: active_period.net_profit = Decimal('0.00')
@@ -82,26 +78,23 @@ def sales():
                 db.session.commit()
                 return redirect("/sales")
         except Exception as e:
-            # Hata yakalandı, sistemi geriye sar!
             db.session.rollback()
             error = "Satış işlenirken bir hata oluştu. Lütfen miktar ve fiyat alanlarını kontrol edin."
             print(f"Sistem Hatası: {e}")
             
-    # SAYFALAMA (PAGINATION)
     page = request.args.get('page', 1, type=int)
     
-    # error_out=False ile hata vermesini engelliyoruz
-    paginated_sales = Sale.query.filter_by(period_id=active_period.id) \
+    # İptal edilenleri (is_cancelled=True) ekrandan gizliyoruz
+    paginated_sales = Sale.query.filter_by(period_id=active_period.id, is_cancelled=False) \
                                 .order_by(Sale.id.desc()) \
                                 .paginate(page=page, per_page=10, error_out=False)
     
     products = Product.query.filter_by(is_active=True).all()
     
-    # Tabloda dönmek için sales'i, alt butonlar için pagination'ı gönderiyoruz
     return render_template(
         "sales.html", 
-        sales=paginated_sales.items,  # Sadece o sayfanın 10 adetlik verisi
-        pagination=paginated_sales,   # Sayfa numaraları, ileri/geri bilgileri
+        sales=paginated_sales.items, 
+        pagination=paginated_sales, 
         products=products, 
         active_period=active_period, 
         error=error
@@ -111,7 +104,7 @@ def sales():
 def delete_sale(id):
     try:
         sale = Sale.query.get(id)
-        if sale:
+        if sale and not sale.is_cancelled:
             # SİLİNEN SATIŞIN TUTARLARINI KASADAN (PERIOD) GERİ DÜŞÜYORUZ
             period = Period.query.get(sale.period_id)
             if period:
@@ -128,9 +121,10 @@ def delete_sale(id):
                 if product:
                     product.stock_quantity = Decimal(product.stock_quantity) + Decimal(item.quantity)
             
-            db.session.delete(sale)
+            # FİZİKSEL SİLME YOK, İPTAL EDİLDİ OLARAK İŞARETLE
+            sale.is_cancelled = True
             db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"Silme Hatası: {e}")
+        print(f"İptal Hatası: {e}")
     return redirect("/sales")

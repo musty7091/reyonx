@@ -3,7 +3,6 @@ from database import db
 from models import Supplier, Invoice, Payment
 from decimal import Decimal
 
-# Bu dosyanın "tedarikçiler" (supplier) sayfalarından sorumlu olduğunu belirtiyoruz
 supplier_bp = Blueprint("supplier", __name__)
 
 @supplier_bp.route("/suppliers", methods=["GET", "POST"])
@@ -20,12 +19,11 @@ def suppliers():
     
     suppliers_data = []
     for s in Supplier.query.all():
-        # Kuruş hesaplamaları için Decimal kullanıyoruz
-        alis_invoices = sum([inv.total_amount for inv in Invoice.query.filter_by(supplier_id=s.id, invoice_type="alis").all()]) or Decimal('0.00')
-        iade_invoices = sum([inv.total_amount for inv in Invoice.query.filter_by(supplier_id=s.id, invoice_type="iade").all()]) or Decimal('0.00')
-        total_payments = sum([pay.amount for pay in Payment.query.filter_by(supplier_id=s.id).all()]) or Decimal('0.00')
+        # İptal edilen faturaları hesaba dahil etmiyoruz
+        alis_invoices = sum([inv.total_amount for inv in Invoice.query.filter_by(supplier_id=s.id, invoice_type="alis", is_cancelled=False).all()]) or Decimal('0.00')
+        iade_invoices = sum([inv.total_amount for inv in Invoice.query.filter_by(supplier_id=s.id, invoice_type="iade", is_cancelled=False).all()]) or Decimal('0.00')
+        total_payments = sum([pay.amount for pay in Payment.query.filter_by(supplier_id=s.id, is_cancelled=False).all()]) or Decimal('0.00')
         
-        # Bakiye = Aldıklarımız - İade Ettiklerimiz - Ödediklerimiz
         balance = alis_invoices - iade_invoices - total_payments 
         suppliers_data.append({"supplier": s, "balance": balance})
         
@@ -40,18 +38,16 @@ def supplier_detail(id):
         desc = request.form.get("description")
         
         if amount:
-            # Virgülü noktaya çevirme koruması
             amount = amount.replace(',', '.')
-            
-            # Ödenen tutarı Decimal (kuruş hassasiyetli sayı) olarak kaydediyoruz
             payment = Payment(supplier_id=id, amount=Decimal(amount), description=desc)
             db.session.add(payment)
             db.session.commit()
             return redirect(f"/supplier/{id}")
 
     transactions = []
-    invoices = Invoice.query.filter_by(supplier_id=id).all()
-    payments = Payment.query.filter_by(supplier_id=id).all()
+    # İptal edilen işlemleri ekrana yansıtmıyoruz
+    invoices = Invoice.query.filter_by(supplier_id=id, is_cancelled=False).all()
+    payments = Payment.query.filter_by(supplier_id=id, is_cancelled=False).all()
     
     for inv in invoices:
         if inv.invoice_type == "alis":
@@ -62,7 +58,7 @@ def supplier_detail(id):
                 "debt": inv.total_amount, 
                 "credit": Decimal('0.00')
             })
-        else: # İade faturası ise borcumuzu siler (Alacak yazılır)
+        else: 
             transactions.append({
                 "date": inv.date,
                 "type": "İade Faturası",
@@ -80,7 +76,6 @@ def supplier_detail(id):
             "credit": pay.amount 
         })
         
-    # Önce eskiden yeniye (kronolojik) sıralıyoruz ki bakiye hesabı doğru çıksın
     transactions.sort(key=lambda x: x["date"])
     
     running_balance = Decimal('0.00')
@@ -88,7 +83,6 @@ def supplier_detail(id):
         running_balance += (t["debt"] - t["credit"])
         t["balance"] = running_balance
         
-    # Hesaplama bittikten sonra en yeni işlemi en üste almak için listeyi ters çeviriyoruz
     transactions.reverse()
         
     return render_template("supplier_detail.html", supplier=supplier, transactions=transactions, current_balance=running_balance)
